@@ -8,6 +8,7 @@ import { applicationsRouter } from "./modules/applications.ts";
 import { authRouter } from "./modules/auth.ts";
 import { jobsRouter } from "./modules/jobs.ts";
 import { pairingsRouter } from "./modules/pairings.ts";
+import { paymentsRouter } from "./modules/payments.ts";
 import { profilesRouter } from "./modules/profiles.ts";
 import { safetyRouter } from "./modules/safety.ts";
 import { ticketsRouter } from "./modules/tickets.ts";
@@ -27,7 +28,14 @@ export function createApp() {
     res.setHeader("X-Frame-Options", "DENY");
     next();
   });
-  app.use(express.json({ limit: "100kb" }));
+  app.use(
+    express.json({
+      limit: "100kb",
+      verify: (req, _res, buf) => {
+        (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(cookieParser());
 
   const api = express.Router();
@@ -50,9 +58,8 @@ export function createApp() {
     });
   });
 
-  api.get("/payments/config", (_req, res) => {
-    res.json(paymentsConfig());
-  });
+  // Webhooks / config before session auth (signature-checked where needed).
+  api.use(paymentsRouter);
 
   api.use(loadUser);
   api.use(authRouter);

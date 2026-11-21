@@ -28,8 +28,15 @@ const envSchema = z
      * off (default) — payment_status stays not_required.
      * manual — parties record hold/paid/refund; no money through the platform.
      * mock_escrow — simulated hold/release ledger for UX; still no real money.
+     * chapa — licensed Chapa hosted checkout + refund/transfer (needs CHAPA_SECRET_KEY).
      */
-    PAYMENTS_MODE: z.enum(["off", "manual", "mock_escrow"]).default("off"),
+    PAYMENTS_MODE: z.enum(["off", "manual", "mock_escrow", "chapa"]).default("off"),
+    CHAPA_SECRET_KEY: z.string().optional(),
+    CHAPA_PUBLIC_KEY: z.string().optional(),
+    /** Override API host (tests / sandbox proxies). Default https://api.chapa.co/v1 */
+    CHAPA_BASE_URL: z.string().url().optional(),
+    /** Public API origin for Chapa callback/webhook (e.g. https://api.example.com). */
+    PUBLIC_API_URL: z.string().url().optional(),
 
     /** local (default disk) | s3 (AWS S3 / R2 / MinIO compatible) */
     STORAGE_BACKEND: z.enum(["local", "s3"]).default("local"),
@@ -71,6 +78,13 @@ const envSchema = z
         code: "custom",
         message: "S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY are required when STORAGE_BACKEND=s3",
         path: ["S3_BUCKET"],
+      });
+    }
+    if (e.PAYMENTS_MODE === "chapa" && !e.CHAPA_SECRET_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        message: "CHAPA_SECRET_KEY is required when PAYMENTS_MODE=chapa",
+        path: ["CHAPA_SECRET_KEY"],
       });
     }
   });

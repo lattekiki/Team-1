@@ -32,6 +32,9 @@ type MyProfile = {
     landmark: string;
     travelKm: number;
     skillIds: number[];
+    payoutAccountName: string;
+    payoutAccountNumber: string;
+    payoutBankCode: number | null;
   } | null;
   employer: { employerType: EmployerType; businessName: string | null; area: string } | null;
 };
@@ -277,6 +280,48 @@ function WorkerForm({
           })}
         </div>
       </fieldset>
+      <div className="pt-2 border-t border-zinc-100 space-y-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("payoutSection")}</p>
+        <p className="text-xs text-zinc-500">{t("payoutHint")}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label htmlFor="w-payout-name" className={field.label}>
+              {t("payoutAccountName")}
+            </label>
+            <input
+              id="w-payout-name"
+              value={form.payoutAccountName}
+              onChange={(e) => set("payoutAccountName", e.target.value)}
+              className={field.input}
+            />
+          </div>
+          <div>
+            <label htmlFor="w-payout-number" className={field.label}>
+              {t("payoutAccountNumber")}
+            </label>
+            <input
+              id="w-payout-number"
+              value={form.payoutAccountNumber}
+              onChange={(e) => set("payoutAccountNumber", e.target.value)}
+              className={field.input}
+            />
+          </div>
+          <div>
+            <label htmlFor="w-payout-bank" className={field.label}>
+              {t("payoutBankCode")}
+            </label>
+            <input
+              id="w-payout-bank"
+              type="number"
+              min={1}
+              value={form.payoutBankCode ?? ""}
+              onChange={(e) => set("payoutBankCode", e.target.value ? Number(e.target.value) : null)}
+              placeholder={t("payoutBankCodePlaceholder")}
+              className={field.input}
+            />
+          </div>
+        </div>
+      </div>
       {error && <ErrorBox message={error} />}
       <button type="submit" disabled={busy} className={btn.primary}>
         {t("saveWorker")}
@@ -624,6 +669,9 @@ export function ProfilePage() {
                   landmark: "",
                   travelKm: 5,
                   skillIds: [],
+                  payoutAccountName: "",
+                  payoutAccountNumber: "",
+                  payoutBankCode: null,
                 }
               }
               skills={skills.data!.skills}

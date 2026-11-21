@@ -25,7 +25,7 @@ export const PAIRING_STATUSES = [
 ] as const;
 export const CONTACT_VISIBLE_PAIRING_STATUSES = ["confirmed", "in_progress", "completed", "disputed"] as const;
 export const PAYMENT_STATUSES = ["not_required", "pending", "held", "paid", "refunded", "failed"] as const;
-export const PAYMENTS_MODES = ["off", "manual", "mock_escrow"] as const;
+export const PAYMENTS_MODES = ["off", "manual", "mock_escrow", "chapa"] as const;
 
 export const JIMMA_AREAS = [
   { id: "Kochi", am: "ኮቺ" },
@@ -112,6 +112,10 @@ export const workerProfileSchema = z.object({
   landmark: z.string().trim().max(120).default(""),
   travelKm: z.coerce.number().int().min(0).max(100).default(5),
   skillIds: z.array(z.number().int().positive()).max(20).default([]),
+  /** Optional Chapa / bank payout destination when PAYMENTS_MODE=chapa. */
+  payoutAccountName: z.string().trim().max(120).default(""),
+  payoutAccountNumber: z.string().trim().max(40).default(""),
+  payoutBankCode: z.coerce.number().int().positive().nullish(),
 });
 
 export const employerProfileSchema = z.object({
@@ -370,6 +374,8 @@ export type Pairing = {
   paymentAmountEtb: number | null;
   paymentHeldAt: string | null;
   paymentPaidAt: string | null;
+  /** Hosted checkout URL while payment is still pending (Chapa). */
+  paymentCheckoutUrl: string | null;
   myRole: "worker" | "employer";
   job: Pick<
     JobSummary,

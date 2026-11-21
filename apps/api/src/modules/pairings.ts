@@ -15,6 +15,8 @@ import { idParam } from "../lib/http.ts";
 import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
+import { env } from "../env.ts";
+import { markPairingHeld } from "../lib/payment-hold.ts";
 import {
   initialPaymentStatus,
   paymentProvider,
@@ -61,6 +63,7 @@ function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
     paymentAmountEtb: r.payment_amount_etb != null ? Number(r.payment_amount_etb) : null,
     paymentHeldAt: r.payment_held_at ?? null,
     paymentPaidAt: r.payment_paid_at ?? null,
+    paymentCheckoutUrl: r.payment_checkout_url ?? null,
     myRole,
     job: {
       id: r.job_id,
@@ -313,37 +316,115 @@ function agreedAmount(p: Row): number {
 pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) => {
   assertPaymentsOn();
   const me = currentUser(req);
+  let checkoutUrl: string | null = null;
+  const pairingId = idParam(req);
   await withTransaction(async (db) => {
-    const p = await loadPairing(db, idParam(req), me, true);
+    const p = await loadPairing(db, pairingId, me, true);
     assertParty(p, me.id, "employer");
     assertStatus(p, ["confirmed", "in_progress"], "hold payment");
     if (p.payment_status !== "pending" && p.payment_status !== "failed") {
       throw conflict(`Payment is already ${p.payment_status}`, "payment_wrong_status");
     }
     const amount = agreedAmount(p);
-    const { externalId } = await paymentProvider.hold({ pairingId: p.id, amountEtb: amount });
-    await db.query(
-      `update pairings
-       set payment_status = 'held', payment_amount_etb = $2, payment_external_id = $3,
-           payment_held_at = now(), updated_at = now()
-       where id = $1`,
-      [p.id, amount, externalId],
-    );
-    await recordPaymentEvent(db, {
+    const returnUrl = `${env.WEB_ORIGIN.replace(/\/$/, "")}/pairings/${p.id}?payment=return`;
+    const callbackUrl = env.PUBLIC_API_URL
+      ? `${env.PUBLIC_API_URL.replace(/\/$/, "")}/api/payments/chapa/callback`
+      : undefined;
+    const held = await paymentProvider.hold({
       pairingId: p.id,
-      action: "hold",
       amountEtb: amount,
-      externalId,
-      actorId: me.id,
+      employerPhone: p.employer_phone,
+      employerUsername: p.employer_username,
+      jobTitle: p.title,
+      returnUrl,
+      callbackUrl,
     });
-    await notify(db, p.worker_id, "payment_held", {
-      pairingId: p.id,
-      title: p.title,
-      amount,
-      provider: paymentProvider.name,
-    });
+    checkoutUrl = held.checkoutUrl ?? null;
+    const immediate = held.immediateHold !== false && !checkoutUrl;
+    if (immediate) {
+      await db.query(
+        `update pairings
+         set payment_status = 'held', payment_amount_etb = $2, payment_external_id = $3,
+             payment_checkout_url = null, payment_held_at = now(), updated_at = now()
+         where id = $1`,
+        [p.id, amount, held.externalId],
+      );
+      await recordPaymentEvent(db, {
+        pairingId: p.id,
+        action: "hold",
+        amountEtb: amount,
+        externalId: held.externalId,
+        actorId: me.id,
+      });
+      await notify(db, p.worker_id, "payment_held", {
+        pairingId: p.id,
+        title: p.title,
+        amount,
+        provider: paymentProvider.name,
+      });
+    } else {
+      await db.query(
+        `update pairings
+         set payment_status = 'pending', payment_amount_etb = $2, payment_external_id = $3,
+             payment_checkout_url = $4, updated_at = now()
+         where id = $1`,
+        [p.id, amount, held.externalId, checkoutUrl],
+      );
+      await recordPaymentEvent(db, {
+        pairingId: p.id,
+        action: "checkout",
+        amountEtb: amount,
+        externalId: held.externalId,
+        actorId: me.id,
+        note: "Hosted checkout started",
+      });
+    }
   });
-  await respond(res, idParam(req), me);
+  const p = await loadPairing(pool, pairingId, me);
+  res.json({
+    pairing: toPairing(p, me.id, await reviewsFor(pool, [p.id])),
+    checkoutUrl,
+  });
+});
+
+pairingsRouter.post("/pairings/:id/payment/verify", requireAuth, async (req, res) => {
+  assertPaymentsOn();
+  const me = currentUser(req);
+  const pairingId = idParam(req);
+  await withTransaction(async (db) => {
+    const p = await loadPairing(db, pairingId, me, true);
+    assertParty(p, me.id);
+    if (p.payment_status === "held" || p.payment_status === "paid") {
+      return;
+    }
+    if (p.payment_status !== "pending") {
+      throw conflict(`Payment is already ${p.payment_status}`, "payment_wrong_status");
+    }
+    if (!p.payment_external_id) throw badRequest("Start checkout before verifying", "payment_checkout_required");
+    if (!paymentProvider.verifyHold) {
+      throw badRequest("This payment mode does not use hosted checkout verify", "payment_verify_unsupported");
+    }
+    const amount = agreedAmount(p);
+    const result = await paymentProvider.verifyHold({
+      pairingId: p.id,
+      externalId: p.payment_external_id,
+      expectedAmountEtb: amount,
+    });
+    if (!result.ok) {
+      await db.query(`update pairings set payment_status = 'failed', updated_at = now() where id = $1`, [p.id]);
+      await recordPaymentEvent(db, {
+        pairingId: p.id,
+        action: "fail",
+        amountEtb: amount,
+        externalId: p.payment_external_id,
+        actorId: me.id,
+        note: "Checkout verify failed",
+      });
+      throw conflict("Payment not confirmed yet", "payment_not_confirmed");
+    }
+    await markPairingHeld(db, p, amount, result.reference ?? p.payment_external_id, me.id);
+  });
+  await respond(res, pairingId, me);
 });
 
 pairingsRouter.post("/pairings/:id/payment/release", requireAuth, async (req, res) => {
@@ -357,19 +438,41 @@ pairingsRouter.post("/pairings/:id/payment/release", requireAuth, async (req, re
       throw conflict("Release payment after work is underway or completed", "pairing_wrong_status");
     }
     const amount = agreedAmount(p);
-    await paymentProvider.release({ pairingId: p.id, amountEtb: amount, externalId: p.payment_external_id });
+    const payout = await db.query(
+      `select payout_account_name, payout_account_number, payout_bank_code
+       from worker_profiles where user_id = $1`,
+      [p.worker_id],
+    );
+    const row = payout.rows[0];
+    const workerPayout =
+      row && row.payout_account_number && row.payout_bank_code
+        ? {
+            accountName: String(row.payout_account_name || ""),
+            accountNumber: String(row.payout_account_number),
+            bankCode: Number(row.payout_bank_code),
+          }
+        : null;
+    const released = await paymentProvider.release({
+      pairingId: p.id,
+      amountEtb: amount,
+      externalId: p.payment_external_id,
+      workerPayout,
+    });
     await db.query(
       `update pairings
-       set payment_status = 'paid', payment_paid_at = now(), updated_at = now()
+       set payment_status = 'paid', payment_paid_at = now(),
+           payment_external_id = coalesce($2, payment_external_id),
+           payment_checkout_url = null, updated_at = now()
        where id = $1`,
-      [p.id],
+      [p.id, released.externalId],
     );
     await recordPaymentEvent(db, {
       pairingId: p.id,
       action: "release",
       amountEtb: amount,
-      externalId: p.payment_external_id,
+      externalId: released.externalId ?? p.payment_external_id,
       actorId: me.id,
+      note: workerPayout ? "Released via transfer" : "Released — merchant balance / manual payout",
     });
     await notify(db, p.worker_id, "payment_released", {
       pairingId: p.id,

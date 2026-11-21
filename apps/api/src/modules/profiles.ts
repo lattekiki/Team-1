@@ -56,6 +56,9 @@ profilesRouter.get("/me/profile", requireAuth, async (req, res) => {
       landmark: w.landmark,
       travelKm: w.travel_km,
       skillIds: skills.rows.map((r) => r.skill_id),
+      payoutAccountName: w.payout_account_name ?? "",
+      payoutAccountNumber: w.payout_account_number ?? "",
+      payoutBankCode: w.payout_bank_code ?? null,
     },
     employer: e && { employerType: e.employer_type, businessName: e.business_name, area: e.area },
   });
@@ -66,12 +69,30 @@ profilesRouter.put("/me/worker-profile", requireAuth, async (req, res) => {
   const p = workerProfileSchema.parse(req.body);
   await withTransaction(async (db) => {
     await db.query(
-      `insert into worker_profiles (user_id, bio, experience_level, availability, area, landmark, travel_km)
-       values ($1, $2, $3, $4, $5, $6, $7)
+      `insert into worker_profiles (
+         user_id, bio, experience_level, availability, area, landmark, travel_km,
+         payout_account_name, payout_account_number, payout_bank_code
+       )
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        on conflict (user_id) do update set
          bio = excluded.bio, experience_level = excluded.experience_level, availability = excluded.availability,
-         area = excluded.area, landmark = excluded.landmark, travel_km = excluded.travel_km, updated_at = now()`,
-      [me.id, p.bio, p.experienceLevel, p.availability, p.area, p.landmark, p.travelKm],
+         area = excluded.area, landmark = excluded.landmark, travel_km = excluded.travel_km,
+         payout_account_name = excluded.payout_account_name,
+         payout_account_number = excluded.payout_account_number,
+         payout_bank_code = excluded.payout_bank_code,
+         updated_at = now()`,
+      [
+        me.id,
+        p.bio,
+        p.experienceLevel,
+        p.availability,
+        p.area,
+        p.landmark,
+        p.travelKm,
+        p.payoutAccountName,
+        p.payoutAccountNumber,
+        p.payoutBankCode ?? null,
+      ],
     );
     if (p.skillIds.length) {
       const valid = await db.query("select count(*)::int as n from skills where id = any($1::int[])", [p.skillIds]);

@@ -1,7 +1,7 @@
 import { Banknote, CheckCircle2, Clock, Lock, MapPin, Phone, RefreshCw, Star, Unlock } from "lucide-react";
-import { useState } from "react";
-import { Link, useParams } from "react-router";
-import type { Pairing } from "@team1/shared";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
+import type { Pairing, PaymentsMode } from "@team1/shared";
 import { DisputeButton, RebookModal, ReportButton, ReviewModal } from "../components/Modals.tsx";
 import { btn, container, ErrorBox, Spinner, StatusPill, TrustTierBadge } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
@@ -10,9 +10,10 @@ import { useToast } from "../lib/toast.tsx";
 import { useAction, useApi } from "../lib/useApi.ts";
 
 type PaymentsConfig = {
-  mode: "off" | "manual" | "mock_escrow";
+  mode: PaymentsMode;
   enabled: boolean;
   escrow: boolean;
+  hostedCheckout?: boolean;
   disclaimer: string;
 };
 
@@ -25,13 +26,32 @@ function stepIndex(p: Pairing) {
 
 export function PairingPage() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { t, fmt } = useI18n();
   const toast = useToast();
   const { busy, run } = useAction();
   const [reviewing, setReviewing] = useState(false);
   const [rebooking, setRebooking] = useState(false);
+  const verifiedReturn = useRef(false);
   const res = useApi<{ pairing: Pairing }>(`/pairings/${id}`);
   const payCfg = useApi<PaymentsConfig>("/payments/config");
+
+  useEffect(() => {
+    if (searchParams.get("payment") !== "return" || !id || verifiedReturn.current) return;
+    verifiedReturn.current = true;
+    void (async () => {
+      const ok = await run(
+        () => api(`/pairings/${id}/payment/verify`, { method: "POST" }),
+        (m) => toast(m, "error"),
+      );
+      if (ok) {
+        toast(t("toastPaymentHeld"));
+        res.reload();
+      }
+      setSearchParams({}, { replace: true });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on Chapa return
+  }, [id, searchParams]);
 
   if (res.loading && !res.data) return <Spinner />;
   if (res.error || !res.data) {
@@ -49,6 +69,7 @@ export function PairingPage() {
   const theirCompletion = isWorker ? p.employerCompletedAt : p.workerCompletedAt;
   const active = ["pending_confirmation", "confirmed", "in_progress", "completed"].includes(p.status);
   const current = stepIndex(p);
+  const hosted = Boolean(payCfg.data?.hostedCheckout);
 
   const act = async (action: string, message: string) => {
     const ok = await run(() => api(`/pairings/${p.id}/${action}`, { method: "POST" }), (m) => toast(m, "error"));
@@ -56,6 +77,21 @@ export function PairingPage() {
       toast(message);
       res.reload();
     }
+  };
+
+  const startCheckout = async () => {
+    const data = await run(
+      () =>
+        api<{ pairing: Pairing; checkoutUrl: string | null }>(`/pairings/${p.id}/payment/hold`, { method: "POST" }),
+      (m) => toast(m, "error"),
+    );
+    if (!data) return;
+    if (data.checkoutUrl) {
+      window.location.href = data.checkoutUrl;
+      return;
+    }
+    toast(t("toastPaymentHeld"));
+    res.reload();
   };
 
   return (
@@ -184,14 +220,24 @@ export function PairingPage() {
                 {!isWorker &&
                   ["pending", "failed"].includes(p.paymentStatus) &&
                   ["confirmed", "in_progress"].includes(p.status) && (
-                    <button
-                      disabled={busy}
-                      onClick={() => act("payment/hold", t("toastPaymentHeld"))}
-                      className={btn.primary}
-                    >
-                      {t("paymentHold")}
+                    <button disabled={busy} onClick={() => void startCheckout()} className={btn.primary}>
+                      {hosted ? t("paymentPayChapa") : t("paymentHold")}
                     </button>
                   )}
+                {!isWorker && hosted && p.paymentStatus === "pending" && p.paymentCheckoutUrl && (
+                  <>
+                    <a href={p.paymentCheckoutUrl} className={btn.light}>
+                      {t("paymentResumeCheckout")}
+                    </a>
+                    <button
+                      disabled={busy}
+                      onClick={() => act("payment/verify", t("toastPaymentHeld"))}
+                      className={btn.ghost}
+                    >
+                      {t("paymentVerify")}
+                    </button>
+                  </>
+                )}
                 {!isWorker &&
                   p.paymentStatus === "held" &&
                   ["in_progress", "completed"].includes(p.status) && (
@@ -212,7 +258,8 @@ export function PairingPage() {
                     {t("paymentRefund")}
                   </button>
                 )}
-                {["pending", "held", "failed"].includes(p.paymentStatus) &&
+                {!hosted &&
+                  ["pending", "held", "failed"].includes(p.paymentStatus) &&
                   ["confirmed", "in_progress", "completed"].includes(p.status) && (
                     <button
                       disabled={busy}

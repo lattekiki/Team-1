@@ -39,10 +39,10 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 
 ### Stubbed / pluggable providers
 - **OTP/SMS**: `OtpProvider` with `console` (default), `africastalking`, or `twilio` via `OTP_PROVIDER`. Live SMS never returns `devCode` unless `OTP_EXPOSE_DEV_CODE=true`.
-- **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow`. Manual/mock track `pending → held → paid|refunded` and write `payment_events`; **no licensed money rail yet** (SRS §12 — pick Chapa/Telebirr/etc. after legal review).
+- **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow|chapa`. Manual/mock track `pending → held → paid|refunded`. **Chapa** opens hosted checkout, confirms via verify/webhook, refunds via Chapa API, and transfers to worker bank details when set (otherwise marks paid for merchant-balance payout). Legal review still required before a live pilot (SRS §12).
 
 ### Deferred (Phase 2+)
-Licensed payment/escrow rail, all AI features.
+All AI features.
 
 ### Added after MVP journey
 - **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
@@ -54,6 +54,7 @@ Licensed payment/escrow rail, all AI features.
 - **Business / bulk jobs**: `POST /jobs/bulk` posts the same template once per shift (2–14); job cards and detail show `filledSlots` / `workersNeeded`; select is blocked when seats are full.
 - **SMS/OTP providers**: Africa's Talking + Twilio adapters; console for local/test.
 - **Payment tracking / mock escrow**: hold, release, mark-paid, refund on pairings; pairing page UI + notifications.
+- **Chapa payment rail**: `PAYMENTS_MODE=chapa` + `CHAPA_SECRET_KEY`; checkout URL on hold; `POST /pairings/:id/payment/verify`, webhook `/payments/webhooks/chapa`, optional worker payout fields for transfer on release.
 - **Cloud object storage**: S3-compatible backend (AWS/R2/MinIO) for verification files; local disk remains the default.
 - **Push / SMS alerts**: Web Push (VAPID + service worker) from Notifications; optional `NOTIFY_SMS` for high-priority events via the same SMS provider as OTP.
 
@@ -128,8 +129,8 @@ docs/PLAN.md
 | catalog | `GET /categories`, `GET /skills`, `GET /stats` (real counts for the home page) |
 | jobs | `GET /jobs` (filters: `q`, `category`, `tier`, `area`, `payType`, `minPay`, `when`, `near`+`radiusKm`, `eligibleOnly`), `GET /jobs/:id`, `POST /jobs`, `POST /jobs/bulk` (multi-shift), `PATCH /jobs/:id`, `POST /jobs/:id/publish`, `POST /jobs/:id/cancel`, `GET /me/jobs` |
 | applications | `POST /jobs/:id/applications`, `GET /jobs/:id/applications` (owner), `GET /me/applicants` (all my jobs), `POST /applications/:id/withdraw`, `POST /applications/:id/select`, `POST /applications/:id/reject`, `GET /me/applications` |
-| pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel`, `POST /pairings/:id/payment/{hold,release,mark-paid,refund}` |
-| payments | `GET /payments/config` (mode + disclaimer) |
+| pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel`, `POST /pairings/:id/payment/{hold,verify,release,mark-paid,refund}` |
+| payments | `GET /payments/config` (mode + disclaimer); Chapa `GET /payments/chapa/callback`, `POST /payments/webhooks/chapa` |
 | reviews | `POST /pairings/:id/reviews` (public reviews are part of `GET /users/:username`) |
 | rebookings | `POST /pairings/:id/rebook`, `GET /me/rebookings`, `POST /rebookings/:id/accept`, `POST /rebookings/:id/decline` |
 | reports | `POST /reports` |
