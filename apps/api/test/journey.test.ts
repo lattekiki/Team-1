@@ -223,6 +223,36 @@ describe("hard rules", () => {
     await apply().expect(201);
   });
 
+  it("filters jobs by Jimma-local date and minimum pay", async () => {
+    const employer = await signUp("date_filter_shop");
+    const errands = await categoryId("errands");
+    // Noon on a Jimma (UTC+3) calendar day, `daysAhead` days from today there.
+    const jimmaNoon = (daysAhead: number) => {
+      const day = new Date(Date.now() + 3 * 3600_000);
+      day.setUTCDate(day.getUTCDate() + daysAhead);
+      return new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 9)).toISOString();
+    };
+    const post = async (title: string, daysAhead: number, payMin: number) => {
+      const res = await employer.agent
+        .post("/api/jobs")
+        .send({ categoryId: errands, title, area: "Ginjo", payType: "fixed", payMin, startsAt: jimmaNoon(daysAhead), publish: true })
+        .expect(201);
+      return res.body.job.id as string;
+    };
+    const tomorrow = await post("Datefilter tomorrow errand", 1, 300);
+    const later = await post("Datefilter later errand", 10, 900);
+    const ids = async (query: Record<string, string>) =>
+      (await request(app).get("/api/jobs").query({ q: "Datefilter", ...query }).expect(200)).body.jobs.map(
+        (j: { id: string }) => j.id,
+      );
+
+    expect(await ids({ when: "today" })).toEqual([]);
+    expect(await ids({ when: "tomorrow" })).toEqual([tomorrow]);
+    expect(await ids({ when: "week" })).toEqual([tomorrow]);
+    expect(await ids({ minPay: "500" })).toEqual([later]);
+    await request(app).get("/api/jobs").query({ when: "someday" }).expect(400);
+  });
+
   it("does not let employers apply to their own jobs", async () => {
     const employer = await signUp("self_applier");
     const job = await postJob(employer.agent, "errands", "Deliver documents");

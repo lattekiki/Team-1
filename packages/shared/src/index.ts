@@ -129,6 +129,9 @@ const jobChecks = <T extends z.ZodType<Partial<z.infer<typeof jobFields>>>>(sche
 export const jobCreateSchema = jobChecks(jobFields.extend({ publish: z.boolean().default(false) }));
 export const jobUpdateSchema = jobChecks(jobFields.partial());
 
+export const JOB_WHEN = ["today", "tomorrow", "week"] as const;
+export type JobWhen = (typeof JOB_WHEN)[number];
+
 export const jobQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
   category: z.string().trim().max(60).optional(),
@@ -136,6 +139,7 @@ export const jobQuerySchema = z.object({
   area: z.string().trim().max(80).optional(),
   payType: z.enum(PAY_TYPES).optional(),
   minPay: z.coerce.number().min(0).optional(),
+  when: z.enum(JOB_WHEN).optional(),
   eligibleOnly: z.enum(["1", "true"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { jobCreateSchema, jobQuerySchema, jobUpdateSchema, type JobSummary } from "@team1/shared";
+import { jobCreateSchema, jobQuerySchema, jobUpdateSchema, type JobSummary, type JobWhen } from "@team1/shared";
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth } from "../lib/auth.ts";
 import { idParam } from "../lib/http.ts";
@@ -17,6 +17,10 @@ const JOB_SELECT = `
   join users u on u.id = j.employer_id
   left join employer_profiles ep on ep.user_id = j.employer_id
   left join applications ma on ma.job_id = j.id and ma.worker_id = $1::uuid`;
+
+// Midnight today on Jimma's clock; "today" means the local day, not the server's.
+const JIMMA_TODAY = `(date_trunc('day', now() at time zone 'Africa/Addis_Ababa') at time zone 'Africa/Addis_Ababa')`;
+const WHEN_DAYS: Record<JobWhen, [from: number, to: number]> = { today: [0, 1], tomorrow: [1, 2], week: [0, 7] };
 
 type JobRow = Record<string, any>;
 
@@ -96,6 +100,13 @@ jobsRouter.get("/jobs", async (req, res) => {
   if (q.area) add((n) => `j.area = $${n}`, q.area);
   if (q.payType) add((n) => `j.pay_type = $${n}`, q.payType);
   if (q.minPay != null) add((n) => `coalesce(j.pay_max, j.pay_min) >= $${n}`, q.minPay);
+  if (q.when) {
+    const [fromDay, toDay] = WHEN_DAYS[q.when];
+    where.push(
+      `j.starts_at < ${JIMMA_TODAY} + interval '${toDay} days'`,
+      `coalesce(j.ends_at, j.starts_at) >= ${JIMMA_TODAY} + interval '${fromDay} days'`,
+    );
+  }
   if (q.eligibleOnly && trust) {
     params.push([...trust.skillCategoryIds]);
     const skillParam = params.length;

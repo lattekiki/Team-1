@@ -1,7 +1,7 @@
 import { Lock, Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { JIMMA_AREAS, PAY_TYPES, TIERS, type Category, type JobSummary } from "@team1/shared";
+import { JIMMA_AREAS, JOB_WHEN, PAY_TYPES, TIERS, type Category, type JobSummary } from "@team1/shared";
 import { ApplyModal } from "../components/ApplyModal.tsx";
 import { JobCard } from "../components/JobCard.tsx";
 import { container, EmptyState, ErrorBox, field, Spinner } from "../components/ui.tsx";
@@ -9,7 +9,8 @@ import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useApi } from "../lib/useApi.ts";
 
-const FILTER_KEYS = ["q", "category", "tier", "area", "payType", "eligibleOnly"] as const;
+const FILTER_KEYS = ["q", "category", "tier", "area", "when", "payType", "minPay", "eligibleOnly"] as const;
+const MIN_PAY_OPTIONS = [200, 500, 1000, 2000];
 
 export function JobsPage() {
   const { t, fmt } = useI18n();
@@ -108,6 +109,37 @@ export function JobsPage() {
                   {JIMMA_AREAS.map((a) => (
                     <option key={a.id} value={a.id}>
                       {fmt.area(a.id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="f-when" className={field.label}>
+                  {t("filterWhen")}
+                </label>
+                <select id="f-when" value={params.get("when") ?? ""} onChange={(e) => setFilter("when", e.target.value)} className={field.select}>
+                  <option value="">{t("whenAny")}</option>
+                  {JOB_WHEN.map((w) => (
+                    <option key={w} value={w}>
+                      {t(`when_${w}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="f-minpay" className={field.label}>
+                  {t("filterMinPay")}
+                </label>
+                <select
+                  id="f-minpay"
+                  value={params.get("minPay") ?? ""}
+                  onChange={(e) => setFilter("minPay", e.target.value)}
+                  className={field.select}
+                >
+                  <option value="">{t("minPayAny")}</option>
+                  {MIN_PAY_OPTIONS.map((amount) => (
+                    <option key={amount} value={amount}>
+                      {t("minPayOption", { amount: amount.toLocaleString("en-US") })}
                     </option>
                   ))}
                 </select>

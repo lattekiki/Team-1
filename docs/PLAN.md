@@ -33,6 +33,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - Role-based access: `user` / `support` / `admin`, enforced in the API (§5, §21)
 - Audit log for admin actions (§19)
 - Seed data + automated API test of the DoD journey (§35)
+- English, Afaan Oromoo and Amharic UI (typed dictionaries in `apps/web/src/lib/locales`; API errors carry stable codes the client translates)
 
 ### Stubbed (interface exists, no real provider)
 - **OTP/SMS**: `OtpProvider` interface, `ConsoleOtpProvider` implementation
@@ -40,7 +41,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - **File uploads**: verification takes a text note/reference only; no identity documents stored yet
 
 ### Deferred (Phase 2+)
-Real SMS, payment provider, document upload storage, distance/map search, Amharic + Afaan Oromoo translations (language preference is stored, UI ships in English with an i18n-ready string table), block user, disputes workflow, support tickets, favorites, business/bulk jobs, all AI features, push/SMS notifications.
+Real SMS, payment provider, document upload storage, distance/map search, block user, disputes workflow, support tickets, favorites, business/bulk jobs, all AI features, push/SMS notifications.
 
 ## 3. Repo layout
 
@@ -111,7 +112,7 @@ docs/PLAN.md
 | auth | `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/logout`, `GET /auth/me` |
 | profiles | `PATCH /me` (username, language, active_mode), `GET /me/profile`, `PUT /me/worker-profile` (includes skill ids), `PUT /me/employer-profile`, `GET /users/:username` (public view with reviews) |
 | catalog | `GET /categories`, `GET /skills`, `GET /stats` (real counts for the home page) |
-| jobs | `GET /jobs` (filters, `eligibleOnly`), `GET /jobs/:id`, `POST /jobs`, `PATCH /jobs/:id`, `POST /jobs/:id/publish`, `POST /jobs/:id/cancel`, `GET /me/jobs` |
+| jobs | `GET /jobs` (filters: `q`, `category`, `tier`, `area`, `payType`, `minPay`, `when` = today/tomorrow/week in Jimma time, `eligibleOnly`), `GET /jobs/:id`, `POST /jobs`, `PATCH /jobs/:id`, `POST /jobs/:id/publish`, `POST /jobs/:id/cancel`, `GET /me/jobs` |
 | applications | `POST /jobs/:id/applications`, `GET /jobs/:id/applications` (owner), `GET /me/applicants` (all my jobs), `POST /applications/:id/withdraw`, `POST /applications/:id/select`, `POST /applications/:id/reject`, `GET /me/applications` |
 | pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel` |
 | reviews | `POST /pairings/:id/reviews` (public reviews are part of `GET /users/:username`) |
