@@ -83,6 +83,9 @@ describe("Definition of Done journey (SRS section 35)", () => {
       .expect(201);
     applicationId = res.body.application.id;
     await worker.agent.post(`/api/jobs/${jobId}/applications`).send({ message: "Applying twice here" }).expect(409);
+
+    const errand = await postJob(employer.agent, "shop-help", "Quick errand");
+    await worker.agent.post(`/api/jobs/${errand}/applications`).send({}).expect(201);
   });
 
   it("employer reviews applicants without seeing contact details, then selects", async () => {
@@ -127,11 +130,17 @@ describe("Definition of Done journey (SRS section 35)", () => {
     expect(types).toEqual(expect.arrayContaining(["application_received", "pairing_confirmed"]));
   });
 
-  it("requires both sides to confirm completion before reviews", async () => {
+  it("requires the worker to finish, then the employer confirms after an admin asks", async () => {
     await worker.agent.post(`/api/pairings/${pairingId}/reviews`).send({ overall: 5 }).expect(409);
-    const half = await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
-    expect(half.body.pairing.status).toBe("confirmed");
-    const done = await worker.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
+    await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(409);
+    const half = await worker.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
+    expect(half.body.pairing.status).not.toBe("completed");
+    expect(half.body.pairing.workerCompletedAt).toBeTruthy();
+    await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(409);
+    const admin = await signUp("flow_admin");
+    await pool.query("update users set role = 'admin' where id = $1", [admin.id]);
+    await admin.agent.post(`/api/admin/pairings/${pairingId}/ask-employer`).expect(200);
+    const done = await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
     expect(done.body.pairing.status).toBe("completed");
   });
 
@@ -259,6 +268,7 @@ describe("hard rules", () => {
     const skills = await request(app).get("/api/skills").expect(200);
     const plumbing = skills.body.skills.find((s: { slug: string }) => s.slug === "plumbing");
     await worker.agent.put("/api/me/worker-profile").send({ skillIds: [plumbing.id] }).expect(200);
+    await worker.agent.post(`/api/jobs/${job}/applications`).send({}).expect(400);
     await apply().expect(201);
   });
 
@@ -639,18 +649,16 @@ describe("hard rules", () => {
     let pairing = await employer.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.paymentStatus).toBe("pending");
 
-    await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(409); // still pending_confirmation
-    await worker.agent.post(`/api/pairings/${pairingId}/accept`).expect(200);
-
-    const hidden = await employer.agent.get(`/api/pairings/${pairingId}`).expect(200);
-    expect(hidden.body.pairing.contact).toBeNull();
-
     await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(200);
-    pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
+    pairing = await employer.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.paymentStatus).toBe("held");
     expect(pairing.body.pairing.paymentAmountEtb).toBe(666);
     expect(pairing.body.pairing.workerPayoutEtb).toBe(634);
     expect(pairing.body.pairing.platformFeeEtb).toBe(32);
+    expect(pairing.body.pairing.contact).toBeNull();
+
+    await worker.agent.post(`/api/pairings/${pairingId}/accept`).expect(200);
+    pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.contact).toEqual({ phone: employer.phone, name: "pay_boss" });
 
     await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(403);
@@ -659,10 +667,11 @@ describe("hard rules", () => {
     const payer = await signUp("pay_admin");
     await pool.query("update users set role = 'admin' where id = $1", [payer.id]);
     await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(409);
-    await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
     await worker.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
+    await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(409);
+    await payer.agent.post(`/api/admin/pairings/${pairingId}/ask-employer`).expect(200);
     await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(409);
-    await payer.agent.post(`/api/admin/pairings/${pairingId}/confirm-work`).expect(200);
+    await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
     await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(200);
     pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.paymentStatus).toBe("paid");

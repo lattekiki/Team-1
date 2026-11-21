@@ -61,7 +61,7 @@ export function ApplicantCard({ applicant, onChanged }: { applicant: Applicant; 
             <p className="text-xs mt-1 text-zinc-500">
               {tp("completedJobs", w.completedJobs)}
               {w.area && ` • ${fmt.area(w.area)}`}
-              {w.experienceLevel && ` • ${fmt.experience(w.experienceLevel)}`} •{" "}
+              {applicant.job.tier !== "ordinary" && w.experienceLevel && ` • ${fmt.experience(w.experienceLevel)}`} •{" "}
               <strong>{t("applicantFor", { title: applicant.job.title })}</strong>
             </p>
           </div>
@@ -74,7 +74,9 @@ export function ApplicantCard({ applicant, onChanged }: { applicant: Applicant; 
       {applicant.match?.blurb && (
         <p className="text-xs mt-3 text-emerald-800 leading-snug">{applicant.match.blurb}</p>
       )}
-      <p className="text-sm mt-3.5 leading-relaxed text-zinc-600">“{applicant.message}”</p>
+      {applicant.message.trim() && (
+        <p className="text-sm mt-3.5 leading-relaxed text-zinc-600">“{applicant.message}”</p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {applicant.match?.reasons.map((reason) => (

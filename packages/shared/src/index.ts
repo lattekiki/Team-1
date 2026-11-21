@@ -258,7 +258,8 @@ export const jobQuerySchema = z.object({
 });
 
 export const applicationCreateSchema = z.object({
-  message: z.string().trim().min(10, "Tell the employer a little about your experience").max(2000),
+  /** Required for skilled and VIP jobs. Ordinary jobs do not ask for experience. */
+  message: z.string().trim().max(2000).default(""),
   proposedPay: money.nullish(),
 });
 
@@ -460,6 +461,8 @@ export type Pairing = {
   startedAt: string | null;
   employerCompletedAt: string | null;
   workerCompletedAt: string | null;
+  /** Set when an admin asks the employer to confirm the worker finished. */
+  employerAskedAt: string | null;
   completedAt: string | null;
   createdAt: string;
   contact: { phone: string; name: string } | null;

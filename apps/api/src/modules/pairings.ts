@@ -98,6 +98,7 @@ function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
     startedAt: r.started_at,
     employerCompletedAt: r.employer_completed_at,
     workerCompletedAt: r.worker_completed_at,
+    employerAskedAt: r.employer_asked_at ?? null,
     completedAt: r.completed_at,
     createdAt: r.created_at,
     contact: contactVisible
@@ -228,6 +229,23 @@ pairingsRouter.post("/pairings/:id/decline", requireAuth, async (req, res) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id, "worker");
     assertStatus(p, ["pending_confirmation"], "decline");
+    if (p.payment_status === "held") {
+      const amount = Number(p.payment_amount_etb ?? p.proposed_pay ?? p.pay_max ?? p.pay_min ?? 0);
+      await paymentProvider.refund({ pairingId: p.id, amountEtb: amount, externalId: p.payment_external_id });
+      await db.query(
+        `update pairings set payment_status = 'refunded', payment_refunded_at = now(), updated_at = now() where id = $1`,
+        [p.id],
+      );
+      await recordPaymentEvent(db, {
+        pairingId: p.id,
+        action: "refund",
+        amountEtb: amount,
+        externalId: p.payment_external_id,
+        actorId: me.id,
+        note: "Refunded because the worker declined",
+      });
+      await notify(db, p.employer_id, "payment_refunded", { pairingId: p.id, title: p.title });
+    }
     await db.query("update pairings set status = 'declined', updated_at = now() where id = $1", [p.id]);
     if (p.application_id) {
       await db.query("update applications set status = 'withdrawn', updated_at = now() where id = $1", [
@@ -265,7 +283,16 @@ pairingsRouter.post("/pairings/:id/complete", requireAuth, async (req, res) => {
     if (platformHoldsFunds && p.payment_status !== "held" && p.payment_status !== "paid") {
       throw conflict("Pay HojiiGO before confirming the work is done", "payment_required");
     }
-    const column = p.worker_id === me.id ? "worker_completed_at" : "employer_completed_at";
+    const isWorker = p.worker_id === me.id;
+    if (platformHoldsFunds && !isWorker) {
+      if (!p.worker_completed_at) {
+        throw conflict("The worker reports the job first", "worker_not_finished");
+      }
+      if (!p.employer_asked_at) {
+        throw conflict("An admin will ask you to confirm the job is done", "employer_not_asked");
+      }
+    }
+    const column = isWorker ? "worker_completed_at" : "employer_completed_at";
     if (p[column]) {
       throw conflict("You already confirmed completion; waiting for the other side", "already_confirmed_completion");
     }
@@ -283,6 +310,30 @@ pairingsRouter.post("/pairings/:id/complete", requireAuth, async (req, res) => {
       );
       for (const userId of [p.worker_id, p.employer_id]) {
         await notify(db, userId, "pairing_completed", { pairingId: p.id, title: p.title });
+      }
+      if (platformHoldsFunds) {
+        const staff = await db.query("select id from users where role in ('admin', 'support')");
+        for (const row of staff.rows) {
+          await notify(db, row.id, "employer_confirmed_work", {
+            pairingId: p.id,
+            title: p.title,
+            employer: p.employer_username,
+          });
+        }
+      }
+    } else if (platformHoldsFunds && isWorker) {
+      await notify(db, p.employer_id, "worker_reported_done", {
+        pairingId: p.id,
+        title: p.title,
+        worker: p.worker_username,
+      });
+      const staff = await db.query("select id from users where role in ('admin', 'support')");
+      for (const row of staff.rows) {
+        await notify(db, row.id, "worker_finished", {
+          pairingId: p.id,
+          title: p.title,
+          worker: p.worker_username,
+        });
       }
     } else {
       await notify(db, otherParty(p, me.id), "completion_requested", { pairingId: p.id, title: p.title });
@@ -352,7 +403,7 @@ pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) 
   await withTransaction(async (db) => {
     const p = await loadPairing(db, pairingId, me, true);
     assertParty(p, me.id, "employer");
-    assertStatus(p, ["confirmed", "in_progress"], "hold payment");
+    assertStatus(p, ["pending_confirmation", "confirmed", "in_progress"], "hold payment");
     if (p.payment_status !== "pending" && p.payment_status !== "failed") {
       throw conflict(`Payment is already ${p.payment_status}`, "payment_wrong_status");
     }
@@ -570,7 +621,7 @@ pairingsRouter.post("/pairings/:id/payment/refund", requireAuth, async (req, res
   await withTransaction(async (db) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id, "employer");
-    if (platformHoldsFunds && p.status !== "confirmed") {
+    if (platformHoldsFunds && !["pending_confirmation", "confirmed"].includes(p.status)) {
       throw forbidden("Ask an admin to refund a job that has already started", "admin_release_required");
     }
     if (p.payment_status !== "held") throw conflict("Only held payments can be refunded", "payment_wrong_status");

@@ -48,7 +48,7 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
 adminRouter.get("/admin/payments", staff, async (_req, res) => {
   const { rows } = await pool.query(
     `select p.id, p.status, p.payment_status, p.payment_amount_etb, p.worker_payout_etb, p.platform_fee_etb,
-            p.admin_confirmed_at, p.updated_at,
+            p.admin_confirmed_at, p.worker_completed_at, p.employer_completed_at, p.employer_asked_at, p.updated_at,
             j.title, wu.username as worker_username, eu.username as employer_username
      from pairings p
      join jobs j on j.id = p.job_id
@@ -66,6 +66,9 @@ adminRouter.get("/admin/payments", staff, async (_req, res) => {
       status: r.status,
       paymentStatus: r.payment_status,
       adminConfirmed: Boolean(r.admin_confirmed_at),
+      workerFinished: Boolean(r.worker_completed_at),
+      employerAsked: Boolean(r.employer_asked_at),
+      employerConfirmed: Boolean(r.employer_completed_at),
       amountEtb: r.payment_amount_etb != null ? Number(r.payment_amount_etb) : null,
       workerPayoutEtb: r.worker_payout_etb != null ? Number(r.worker_payout_etb) : null,
       platformFeeEtb: r.platform_fee_etb != null ? Number(r.platform_fee_etb) : null,
@@ -77,37 +80,32 @@ adminRouter.get("/admin/payments", staff, async (_req, res) => {
   });
 });
 
-adminRouter.post("/admin/pairings/:id/confirm-work", adminOnly, async (req, res) => {
+adminRouter.post("/admin/pairings/:id/ask-employer", adminOnly, async (req, res) => {
   const me = currentUser(req);
   await withTransaction(async (db) => {
     const { rows } = await db.query(
-      `select p.*, j.title
-       from pairings p join jobs j on j.id = p.job_id
+      `select p.*, j.title, wu.username as worker_username
+       from pairings p
+       join jobs j on j.id = p.job_id
+       join users wu on wu.id = p.worker_id
        where p.id = $1 for update of p`,
       [idParam(req)],
     );
     const p = rows[0];
     if (!p) throw notFound("Pairing not found");
-    if (!["in_progress", "completed"].includes(p.status)) {
-      throw conflict("Confirm the job after work has started", "pairing_wrong_status");
+    if (!p.worker_completed_at) {
+      throw conflict("The worker has not reported the job finished", "worker_not_finished");
     }
-    if (!p.admin_confirmed_at) {
-      await db.query(
-        `update pairings set
-           admin_confirmed_at = now(),
-           status = 'completed',
-           started_at = coalesce(started_at, now()),
-           employer_completed_at = coalesce(employer_completed_at, now()),
-           worker_completed_at = coalesce(worker_completed_at, now()),
-           completed_at = coalesce(completed_at, now()),
-           updated_at = now()
-         where id = $1`,
-        [p.id],
-      );
-      await audit(db, me.id, "pairing.confirm_work", { type: "pairing", id: p.id }, {});
-      await notify(db, p.worker_id, "work_confirmed_by_admin", { pairingId: p.id, title: p.title });
-      await notify(db, p.employer_id, "work_confirmed_by_admin", { pairingId: p.id, title: p.title });
+    if (p.employer_completed_at) {
+      throw conflict("The employer already confirmed the job is done", "already_confirmed_completion");
     }
+    await db.query("update pairings set employer_asked_at = now(), updated_at = now() where id = $1", [p.id]);
+    await audit(db, me.id, "pairing.ask_employer", { type: "pairing", id: p.id }, {});
+    await notify(db, p.employer_id, "employer_asked", {
+      pairingId: p.id,
+      title: p.title,
+      worker: p.worker_username,
+    });
   });
   res.json({ ok: true });
 });
@@ -124,11 +122,8 @@ adminRouter.post("/admin/pairings/:id/payment/release", adminOnly, async (req, r
     const p = rows[0];
     if (!p) throw notFound("Pairing not found");
     if (p.payment_status !== "held") throw conflict("Nothing is held to release", "payment_wrong_status");
-    if (!p.admin_confirmed_at) {
-      throw conflict("Confirm the work is done before paying the worker", "admin_confirm_required");
-    }
-    if (p.status !== "completed") {
-      throw conflict("Release payment after the work is confirmed", "pairing_wrong_status");
+    if (!p.worker_completed_at || !p.employer_completed_at || p.status !== "completed") {
+      throw conflict("Pay the worker after they finish and the employer confirms", "employer_confirm_required");
     }
     const amount = Number(p.worker_payout_etb ?? p.payment_amount_etb ?? 0);
     const payout = await db.query(

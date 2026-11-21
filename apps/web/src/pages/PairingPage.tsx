@@ -252,7 +252,7 @@ export function PairingPage() {
               <div className="flex flex-wrap gap-2 pt-1">
                 {!isWorker &&
                   ["pending", "failed"].includes(p.paymentStatus) &&
-                  ["confirmed", "in_progress"].includes(p.status) && (
+                  ["pending_confirmation", "confirmed", "in_progress"].includes(p.status) && (
                     <button disabled={busy} onClick={() => void startCheckout()} className={btn.primary}>
                       {hosted ? t("paymentPayChapa") : t("paymentHold")}
                     </button>
@@ -286,7 +286,7 @@ export function PairingPage() {
                 {platformHolds && p.paymentStatus === "held" && (
                   <p className="text-xs text-zinc-500 w-full">{t("paymentAdminReleases")}</p>
                 )}
-                {!isWorker && p.paymentStatus === "held" && p.status === "confirmed" && (
+                {!isWorker && p.paymentStatus === "held" && ["pending_confirmation", "confirmed"].includes(p.status) && (
                   <button
                     disabled={busy}
                     onClick={() => act("payment/refund", t("toastPaymentRefunded"))}
@@ -330,12 +330,25 @@ export function PairingPage() {
                 </div>
               </>
             )}
-            {p.status === "pending_confirmation" && !isWorker && (
+            {p.status === "pending_confirmation" && !isWorker && platformHolds && !fundsReady && (
+              <>
+                <p className="text-xs text-zinc-500">{t("payNowBody", { username })}</p>
+                <button disabled={busy} onClick={() => void startCheckout()} className={btn.primary}>
+                  {hosted ? t("paymentPayChapa") : t("paymentHold")}
+                </button>
+              </>
+            )}
+            {p.status === "pending_confirmation" && !isWorker && (!platformHolds || fundsReady) && (
               <p className="text-xs text-zinc-500">{t("waitingConfirm", { username })}</p>
             )}
 
             {p.status === "confirmed" && platformHolds && !fundsReady && (
-              <p className="text-xs text-zinc-500">{t("payBeforeWork")}</p>
+              <>
+                <p className="text-xs text-zinc-500">{t("payBeforeWork")}</p>
+                <button disabled={busy} onClick={() => void startCheckout()} className={btn.primary}>
+                  {hosted ? t("paymentPayChapa") : t("paymentHold")}
+                </button>
+              </>
             )}
             {p.status === "confirmed" && (!platformHolds || fundsReady) && (
               <button disabled={busy} onClick={() => act("start", t("toastStarted"))} className={btn.light}>
@@ -343,11 +356,25 @@ export function PairingPage() {
               </button>
             )}
 
-            {(p.status === "confirmed" || p.status === "in_progress") && (!platformHolds || fundsReady) &&
+            {(p.status === "confirmed" || p.status === "in_progress") && (!platformHolds || fundsReady) && isWorker &&
+              (myCompletion ? (
+                <p className="text-xs text-zinc-500">{t("workerFinishedWaiting")}</p>
+              ) : (
+                <button disabled={busy} onClick={() => act("complete", t("toastCompletion"))} className={btn.primary}>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  {t("workerFinishedButton")}
+                </button>
+              ))}
+
+            {(p.status === "confirmed" || p.status === "in_progress") && (!platformHolds || fundsReady) && !isWorker &&
               (myCompletion ? (
                 <p className="text-xs text-zinc-500">
                   {t("youConfirmedCompletion", { date: fmt.date(myCompletion), username })}
                 </p>
+              ) : platformHolds && !p.workerCompletedAt ? (
+                <p className="text-xs text-zinc-500">{t("employerWaitingForWorker", { username })}</p>
+              ) : platformHolds && !p.employerAskedAt ? (
+                <p className="text-xs text-zinc-500">{t("employerWaitingForAsk", { username })}</p>
               ) : (
                 <>
                   {theirCompletion && (
@@ -355,7 +382,7 @@ export function PairingPage() {
                   )}
                   <button disabled={busy} onClick={() => act("complete", t("toastCompletion"))} className={btn.primary}>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    {t("confirmCompleted")}
+                    {platformHolds ? t("employerAskedConfirm", { username }) : t("confirmCompleted")}
                   </button>
                 </>
               ))}

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { applicationCreateSchema, type Applicant, type MyApplication } from "@team1/shared";
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth } from "../lib/auth.ts";
@@ -49,6 +50,14 @@ applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) 
     if (body.proposedPay != null && !job.negotiable) {
       throw conflict("This job does not accept pay proposals", "no_pay_proposals");
     }
+    const message =
+      job.tier === "ordinary"
+        ? body.message
+        : z
+            .object({
+              message: z.string().trim().min(10, "Tell the employer a little about your experience").max(2000),
+            })
+            .parse({ message: body.message }).message;
 
     const eligibility = await checkEligibility(db, me.id, { tier: job.tier, categoryId: job.category_id });
     if (!eligibility.eligible) throw notEligible(eligibility);
@@ -64,14 +73,14 @@ applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) 
         await db.query(
           `update applications set status = 'pending', message = $2, proposed_pay = $3, updated_at = now()
            where id = $1 returning *`,
-          [existing.rows[0].id, body.message, body.proposedPay ?? null],
+          [existing.rows[0].id, message, body.proposedPay ?? null],
         )
       ).rows[0];
     } else {
       row = (
         await db.query(
           "insert into applications (job_id, worker_id, message, proposed_pay) values ($1, $2, $3, $4) returning *",
-          [job.id, me.id, body.message, body.proposedPay ?? null],
+          [job.id, me.id, message, body.proposedPay ?? null],
         )
       ).rows[0];
     }

@@ -250,11 +250,11 @@ export function paymentsConfig() {
     provider: paymentProvider.name,
     disclaimer:
       paymentsMode === "mock_escrow"
-        ? "Payment is recorded only. No money is transferred until Chapa is connected. An admin confirms the work, then records the payout to the worker."
+        ? "Payment is recorded only. No money is transferred until Chapa is connected. Pay HojiiGO when you select the worker. After the worker says the job is done, an admin asks you to confirm, then records the payout."
         : paymentsMode === "manual"
           ? "Record payments you settle directly. HojiiGO does not hold funds."
           : paymentsMode === "chapa"
-            ? "Pay with Chapa (Telebirr, cards, banks). Funds stay with HojiiGO until an admin confirms the work and pays the worker."
+            ? "Pay HojiiGO with Chapa when you select the worker. After the worker says the job is done, an admin asks you to confirm, then pays the worker."
             : "Platform payments are off — settle directly with the other party.",
   };
 }

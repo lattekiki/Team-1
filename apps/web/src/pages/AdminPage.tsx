@@ -483,6 +483,9 @@ type PaymentRow = {
   status: PairingStatus;
   paymentStatus: PaymentStatus;
   adminConfirmed: boolean;
+  workerFinished: boolean;
+  employerAsked: boolean;
+  employerConfirmed: boolean;
   amountEtb: number | null;
   workerPayoutEtb: number | null;
   platformFeeEtb: number | null;
@@ -496,13 +499,13 @@ function PaymentsQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged
   const toast = useToast();
   const { busy, run } = useAction();
   const res = useApi<{ payments: PaymentRow[] }>("/admin/payments");
-  const confirmWork = async (id: string) => {
+  const askEmployer = async (id: string) => {
     const ok = await run(
-      () => api(`/admin/pairings/${id}/confirm-work`, { method: "POST" }),
+      () => api(`/admin/pairings/${id}/ask-employer`, { method: "POST" }),
       (m) => toast(m, "error"),
     );
     if (ok) {
-      toast(t("toastWorkConfirmed"));
+      toast(t("toastEmployerAsked"));
       res.reload();
       onChanged();
     }
@@ -538,16 +541,19 @@ function PaymentsQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged
             <div className="mt-2 flex gap-2">
               <StatusPill tone={p.paymentStatus === "paid" ? "good" : "warn"}>{fmt.paymentStatus(p.paymentStatus)}</StatusPill>
               <StatusPill>{fmt.pairingStatus(p.status)}</StatusPill>
-              {p.adminConfirmed && <StatusPill tone="good">{t("adminConfirmed")}</StatusPill>}
+              {p.employerConfirmed && <StatusPill tone="good">{t("employerConfirmedWork")}</StatusPill>}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {canDecide && p.paymentStatus === "held" && ["in_progress", "completed"].includes(p.status) && !p.adminConfirmed && (
-              <button disabled={busy} onClick={() => void confirmWork(p.id)} className={btn.primary}>
-                {t("adminConfirmWork")}
+            {canDecide && p.paymentStatus === "held" && p.workerFinished && !p.employerConfirmed && !p.employerAsked && (
+              <button disabled={busy} onClick={() => void askEmployer(p.id)} className={btn.primary}>
+                {t("adminAskEmployer")}
               </button>
             )}
-            {canDecide && p.paymentStatus === "held" && p.adminConfirmed && (
+            {p.paymentStatus === "held" && p.employerAsked && !p.employerConfirmed && (
+              <p className="text-xs text-zinc-500 self-center">{t("adminWaitingEmployer")}</p>
+            )}
+            {canDecide && p.paymentStatus === "held" && p.employerConfirmed && p.status === "completed" && (
               <button disabled={busy} onClick={() => void release(p.id)} className={btn.primary}>
                 {t("paymentReleaseToWorker")}
               </button>

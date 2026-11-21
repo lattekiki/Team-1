@@ -15,6 +15,7 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
   const toast = useToast();
   const { busy, run } = useAction();
   const [message, setMessage] = useState("");
+  const asksExperience = job.tier !== "ordinary";
   const [proposedPay, setProposedPay] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +25,10 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
     const ok = await run(
       () =>
         api(`/jobs/${job.id}/applications`, {
-          body: { message, proposedPay: job.negotiable && proposedPay ? Number(proposedPay) : null },
+          body: {
+            message: asksExperience ? message : "",
+            proposedPay: job.negotiable && proposedPay ? Number(proposedPay) : null,
+          },
         }),
       setError,
     );
@@ -52,29 +56,31 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
       </div>
 
       <form onSubmit={submit} className="mt-4 space-y-4">
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="pitch" className={field.label}>
-              {t("applyPitchLabel")}
-            </label>
-            <AssistButton
-              kind="apply_message"
-              disabled={busy}
-              payload={{ jobId: job.id, title: job.title, description: job.description, area: job.area }}
-              onDraft={setMessage}
+        {asksExperience && (
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="pitch" className={field.label}>
+                {t("applyPitchLabel")}
+              </label>
+              <AssistButton
+                kind="apply_message"
+                disabled={busy}
+                payload={{ jobId: job.id, title: job.title, description: job.description, area: job.area }}
+                onDraft={setMessage}
+              />
+            </div>
+            <textarea
+              id="pitch"
+              required
+              minLength={10}
+              rows={4}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={t("applyPitchPlaceholder")}
+              className={field.textarea}
             />
           </div>
-          <textarea
-            id="pitch"
-            required
-            minLength={10}
-            rows={4}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={t("applyPitchPlaceholder")}
-            className={field.textarea}
-          />
-        </div>
+        )}
 
         {job.negotiable && (
           <div>
