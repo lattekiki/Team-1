@@ -442,6 +442,8 @@ export const en = {
   err_payment_wrong_status: "That payment step isn't available right now.",
   err_payment_amount_required: "Agree a pay amount before recording payment.",
   err_otp_send_failed: "Could not send the SMS code. Try again in a moment.",
+  err_storage_failed: "Could not store or read that file. Try again.",
+  err_storage_unavailable: "Cloud storage is not configured for this file.",
 
   // Dashboard
   withUser: "with @{username}",

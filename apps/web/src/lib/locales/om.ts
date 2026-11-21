@@ -434,6 +434,8 @@ export const om: Messages = {
   err_payment_wrong_status: "Tarkaanfiin kaffaltii kun amma hin danda'amu.",
   err_payment_amount_required: "Kaffaltii galmeessuun dura hanga waliigalame qabaadhu.",
   err_otp_send_failed: "SMS erguu hin dandeenye. Yeroo muraasa booda deebi'i yaali.",
+  err_storage_failed: "Faayilii kuusuu ykn dubbisuu hin dandeenye. Deebi'i yaali.",
+  err_storage_unavailable: "Kuusaa duumessarri faayilii kanaaf hin qindaa'inne.",
 
   withUser: "@{username} waliin",
   needsConfirm: "Mirkaneessi kee barbaachisa",

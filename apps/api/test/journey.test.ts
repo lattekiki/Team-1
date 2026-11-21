@@ -181,6 +181,9 @@ describe("Definition of Done journey (SRS section 35)", () => {
 
 describe("hard rules", () => {
   it("lets a user attach verification documents for staff to open", async () => {
+    const health = await request(app).get("/api/health").expect(200);
+    expect(health.body.storage).toBe("local");
+
     const worker = await signUp("docs_worker");
     const admin = await signUp("docs_admin");
     await pool.query("update users set role = 'admin' where id = $1", [admin.id]);
@@ -196,6 +199,11 @@ describe("hard rules", () => {
     const mine = await worker.agent.get("/api/me/verification").expect(200);
     expect(mine.body.records[0].documents).toHaveLength(1);
     const docId = mine.body.records[0].documents[0].id as string;
+    const stored = await pool.query("select stored_name, storage_backend from verification_documents where id = $1", [
+      docId,
+    ]);
+    expect(stored.rows[0].storage_backend).toBe("local");
+    expect(stored.rows[0].stored_name).toMatch(/^verification\//);
     const file = await admin.agent.get(`/api/verification/${id}/documents/${docId}/file`).expect(200);
     expect(file.headers["content-type"]).toMatch(/pdf/);
     await worker.agent

@@ -5,7 +5,12 @@ if (existsSync(".env")) process.loadEnvFile(".env");
 
 export default defineConfig({
   test: {
-    env: { NODE_ENV: "test", PAYMENTS_MODE: "mock_escrow", OTP_PROVIDER: "console" },
+    env: {
+      NODE_ENV: "test",
+      PAYMENTS_MODE: "mock_escrow",
+      OTP_PROVIDER: "console",
+      STORAGE_BACKEND: "local",
+    },
     globalSetup: ["./test/global-setup.ts"],
     fileParallelism: false,
     testTimeout: 20_000,

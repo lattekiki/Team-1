@@ -89,9 +89,13 @@ function Header() {
     <header className="sticky top-0 z-40 bg-canvas/85 backdrop-blur-md border-b border-stone-200/70">
       <div className={`${container} py-3 flex flex-wrap items-center justify-between gap-3`}>
         <Link to="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-zinc-900 text-white flex items-center justify-center font-extrabold text-lg tracking-tighter shadow-sm">
-            HG
-          </div>
+          <img
+            src="/logo.png"
+            alt="HojiiGO"
+            width={40}
+            height={40}
+            className="w-10 h-10 rounded-2xl object-cover shadow-sm"
+          />
           <div>
             <span className="font-extrabold text-lg tracking-tight text-zinc-900">
               Hojii<span className="text-emerald-600">GO</span>
@@ -241,7 +245,13 @@ export function Layout({ children }: { children: ReactNode }) {
       <footer className="bg-zinc-950 text-zinc-400 py-10 border-t border-zinc-900">
         <div className={`${container} flex flex-col sm:flex-row items-center justify-between gap-4`}>
           <div className="flex items-center gap-2.5 text-white font-extrabold text-sm">
-            <span className="px-2 py-1 rounded-lg bg-white text-zinc-900 text-xs">HG</span>
+            <img
+              src="/logo.png"
+              alt="HojiiGO"
+              width={28}
+              height={28}
+              className="w-7 h-7 rounded-lg object-cover"
+            />
             <span>
               Hojii<span className="text-emerald-400">GO</span>
             </span>

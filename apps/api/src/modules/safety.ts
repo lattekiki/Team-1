@@ -1,4 +1,3 @@
-import { createReadStream, unlinkSync } from "node:fs";
 import { Router } from "express";
 import {
   reportCreateSchema,
@@ -12,11 +11,25 @@ import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth, type AuthUser } from "../lib/auth.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { idParam } from "../lib/http.ts";
+import { LocalObjectStore, objectStore, type ObjectStore } from "../lib/storage.ts";
 import {
-  absoluteStoredPath,
   MAX_VERIFICATION_DOCS,
+  safeDeleteObject,
+  storeVerificationFile,
   verificationUpload,
 } from "../lib/uploads.ts";
+
+const localStore = new LocalObjectStore();
+
+function storeForBackend(backend: string): ObjectStore {
+  if (backend === "s3") {
+    if (objectStore.name !== "s3") {
+      throw badRequest("This file is in cloud storage but STORAGE_BACKEND is not s3", "storage_unavailable");
+    }
+    return objectStore;
+  }
+  return localStore;
+}
 
 export const safetyRouter = Router();
 
@@ -115,6 +128,7 @@ safetyRouter.post(
     const file = req.file;
     if (!file) throw badRequest("Choose a file to upload", "file_required");
 
+    const stored = await storeVerificationFile(file);
     try {
       const record = await withTransaction(async (db) => {
         const { rows } = await db.query("select * from verification_records where id = $1 for update", [
@@ -135,20 +149,24 @@ safetyRouter.post(
         }
         const inserted = await db.query(
           `insert into verification_documents
-             (verification_id, original_name, stored_name, mime_type, size_bytes, uploaded_by)
-           values ($1, $2, $3, $4, $5, $6) returning *`,
-          [rec.id, file.originalname.slice(0, 200), file.filename, file.mimetype, file.size, me.id],
+             (verification_id, original_name, stored_name, mime_type, size_bytes, uploaded_by, storage_backend)
+           values ($1, $2, $3, $4, $5, $6, $7) returning *`,
+          [
+            rec.id,
+            file.originalname.slice(0, 200),
+            stored.key,
+            file.mimetype,
+            stored.size,
+            me.id,
+            stored.backend,
+          ],
         );
         const all = await docsFor(db, [rec.id]);
         return toVerification(rec, all.get(rec.id) ?? [toDoc(inserted.rows[0])]);
       });
       res.status(201).json({ record });
     } catch (err) {
-      try {
-        unlinkSync(file.path);
-      } catch {
-        /* ignore */
-      }
+      await safeDeleteObject(stored.key);
       throw err;
     }
   },
@@ -168,7 +186,8 @@ safetyRouter.get("/verification/:id/documents/:docId/file", requireAuth, async (
     "Content-Disposition",
     `inline; filename="${String(doc.original_name).replace(/"/g, "")}"`,
   );
-  createReadStream(absoluteStoredPath(doc.stored_name)).pipe(res);
+  const stream = await storeForBackend(doc.storage_backend ?? "local").get(doc.stored_name);
+  stream.pipe(res);
 });
 
 async function userByUsername(name: string | string[] | undefined) {

@@ -426,6 +426,8 @@ export const am: Messages = {
   err_payment_wrong_status: "ያ የክፍያ ደረጃ አሁን አይገኝም።",
   err_payment_amount_required: "ክፍያ ከመመዝገብዎ በፊት የተስማሙበት መጠን ያስፈልጋል።",
   err_otp_send_failed: "የኤስኤምኤስ ኮድ መላክ አልተቻለም። ትንሽ ቆይተው እንደገና ይሞክሩ።",
+  err_storage_failed: "ፋይሉን ማስቀመጥ ወይም ማንበብ አልተቻለም። እንደገና ይሞክሩ።",
+  err_storage_unavailable: "ለዚህ ፋይል የክላውድ ማከማቻ አልተዋቀረም።",
 
   withUser: "ከ@{username} ጋር",
   needsConfirm: "የእርስዎ ማረጋገጫ ያስፈልጋል",

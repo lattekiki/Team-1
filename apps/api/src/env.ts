@@ -15,7 +15,7 @@ const envSchema = z
 
     /** console (default) | africastalking | twilio */
     OTP_PROVIDER: z.enum(["console", "africastalking", "twilio"]).default("console"),
-    /** Force returning the code in /auth/otp/request (never enable in real SMS prod). */
+    /** Force returning the code in /auth/otp/request (never enable with a live SMS provider in production). */
     OTP_EXPOSE_DEV_CODE: boolish,
     AT_USERNAME: z.string().optional(),
     AT_API_KEY: z.string().optional(),
@@ -30,6 +30,16 @@ const envSchema = z
      * mock_escrow — simulated hold/release ledger for UX; still no real money.
      */
     PAYMENTS_MODE: z.enum(["off", "manual", "mock_escrow"]).default("off"),
+
+    /** local (default disk) | s3 (AWS S3 / R2 / MinIO compatible) */
+    STORAGE_BACKEND: z.enum(["local", "s3"]).default("local"),
+    UPLOAD_DIR: z.string().optional(),
+    S3_BUCKET: z.string().optional(),
+    S3_REGION: z.string().optional(),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    /** Optional custom endpoint for R2/MinIO (e.g. https://xxx.r2.cloudflarestorage.com). */
+    S3_ENDPOINT: z.string().url().optional(),
   })
   .superRefine((e, ctx) => {
     if (e.OTP_PROVIDER === "africastalking" && (!e.AT_USERNAME || !e.AT_API_KEY)) {
@@ -44,6 +54,16 @@ const envSchema = z
         code: "custom",
         message: "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM are required when OTP_PROVIDER=twilio",
         path: ["TWILIO_AUTH_TOKEN"],
+      });
+    }
+    if (
+      e.STORAGE_BACKEND === "s3" &&
+      (!e.S3_BUCKET || !e.S3_REGION || !e.S3_ACCESS_KEY_ID || !e.S3_SECRET_ACCESS_KEY)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY are required when STORAGE_BACKEND=s3",
+        path: ["S3_BUCKET"],
       });
     }
   });

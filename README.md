@@ -34,6 +34,9 @@ Default `OTP_PROVIDER=console` logs the code and returns it as `devCode` for the
 Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow` (simulated hold/release — no real money).
 Use `off` to settle only outside the app, or `manual` to record cash/bank payments without a hold step.
 
+Verification documents default to local disk (`STORAGE_BACKEND=local`). Set `STORAGE_BACKEND=s3` plus
+`S3_BUCKET` / `S3_REGION` / keys (and optional `S3_ENDPOINT` for R2 or MinIO) to store them in the cloud.
+
 | Demo account | Phone | Role |
 |---|---|---|
 | `admin` | `0911000001` | Admin console |

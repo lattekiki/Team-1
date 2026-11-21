@@ -13,6 +13,7 @@ import { safetyRouter } from "./modules/safety.ts";
 import { ticketsRouter } from "./modules/tickets.ts";
 import { paymentsConfig } from "./lib/payments.ts";
 import { otpProvider } from "./lib/otp.ts";
+import { objectStore } from "./lib/storage.ts";
 
 export function createApp() {
   const app = express();
@@ -41,6 +42,7 @@ export function createApp() {
       db,
       otpProvider: otpProvider.name,
       payments: paymentsConfig(),
+      storage: objectStore.name,
     });
   });
 
