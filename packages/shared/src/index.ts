@@ -315,8 +315,13 @@ export type Notification = {
   createdAt: string;
 };
 
+export type BlockedUser = { username: string; createdAt: string };
+
 export type PublicProfile = {
+  id: string;
   username: string;
+  /** True when the signed-in viewer has blocked this user. */
+  blockedByMe: boolean;
   memberSince: string;
   identityVerified: boolean;
   highTrustApproved: boolean;

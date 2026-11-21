@@ -3,6 +3,7 @@ import { applicationCreateSchema, type Applicant, type MyApplication } from "@te
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth } from "../lib/auth.ts";
 import { idParam } from "../lib/http.ts";
+import { assertNotBlocked, notBlockedSql } from "../lib/blocks.ts";
 import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
@@ -34,6 +35,7 @@ applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) 
     if (job.status !== "published") throw conflict("This job is no longer accepting applications", "job_closed");
     if (job.invited_worker_id) throw conflict("This is a private rebooking request", "private_job");
     if (job.employer_id === me.id) throw forbidden("You cannot apply to your own job", "own_job");
+    await assertNotBlocked(db, me.id, job.employer_id);
     if (job.application_deadline && new Date(job.application_deadline) < new Date()) {
       throw conflict("The application deadline has passed", "deadline_passed");
     }
@@ -91,7 +93,7 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
      join users u on u.id = a.worker_id
      left join worker_profiles w on w.user_id = u.id
      left join pairings p on p.application_id = a.id
-     where ${where} and a.status <> 'withdrawn'
+     where ${where} and a.status <> 'withdrawn' and ${notBlockedSql("j.employer_id", "a.worker_id")}
      order by a.created_at desc`,
     [param],
   );
@@ -190,6 +192,7 @@ applicationsRouter.post("/applications/:id/select", requireAuth, async (req, res
     if (app.employer_id !== me.id) throw forbidden("Only the employer can select applicants");
     if (app.status !== "pending") throw conflict(`This application is ${app.status}`, "application_not_pending");
     if (app.job_status !== "published") throw conflict("This job is not open", "job_closed");
+    await assertNotBlocked(db, me.id, app.worker_id);
 
     const { rows } = await db.query(
       `select count(*)::int as n from pairings where job_id = $1 and status in ${ACTIVE_PAIRING}`,

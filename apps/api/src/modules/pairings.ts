@@ -9,6 +9,7 @@ import {
 } from "@team1/shared";
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth, type AuthUser } from "../lib/auth.ts";
+import { assertNotBlocked } from "../lib/blocks.ts";
 import { idParam } from "../lib/http.ts";
 import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { conflict, forbidden, notFound } from "../lib/errors.ts";
@@ -296,6 +297,7 @@ pairingsRouter.post("/pairings/:id/rebook", requireAuth, async (req, res) => {
     if (p.rebooking_status === "pending") {
       throw conflict("A rebooking request is already waiting for the worker", "rebook_pending");
     }
+    await assertNotBlocked(db, me.id, p.worker_id);
 
     const job = await db.query(
       `insert into jobs (employer_id, category_id, tier, invited_worker_id, title, description, area, landmark,

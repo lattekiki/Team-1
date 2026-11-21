@@ -2,6 +2,7 @@ import { Router } from "express";
 import { jobCreateSchema, jobQuerySchema, jobUpdateSchema, type JobSummary, type JobWhen } from "@team1/shared";
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth } from "../lib/auth.ts";
+import { notBlockedSql } from "../lib/blocks.ts";
 import { idParam } from "../lib/http.ts";
 import { evaluateEligibility, loadWorkerTrust, type WorkerTrust } from "../lib/eligibility.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
@@ -89,6 +90,8 @@ jobsRouter.get("/jobs", async (req, res) => {
     "j.status = 'published'",
     "j.invited_worker_id is null",
     "(j.application_deadline is null or j.application_deadline > now())",
+    // $1 is the viewer (null when signed out, which matches no block rows).
+    notBlockedSql("$1::uuid", "j.employer_id"),
   ];
   const add = (sql: (n: number) => string, value: unknown) => {
     params.push(value);

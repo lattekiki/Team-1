@@ -116,7 +116,7 @@ profilesRouter.get("/users/:username", async (req, res) => {
   const u = rows[0];
   if (!u) throw notFound("User not found");
 
-  const [rep, skills, reviews] = await Promise.all([
+  const [rep, skills, reviews, block] = await Promise.all([
     reputationFor(pool, [u.id]),
     pool.query(
       "select s.slug, s.name from user_skills us join skills s on s.id = us.skill_id where us.user_id = $1 order by s.name",
@@ -129,10 +129,15 @@ profilesRouter.get("/users/:username", async (req, res) => {
        order by r.created_at desc limit 20`,
       [u.id],
     ),
+    req.user
+      ? pool.query("select 1 from user_blocks where blocker_id = $1 and blocked_id = $2", [req.user.id, u.id])
+      : null,
   ]);
   const r = rep.get(u.id);
   const profile: PublicProfile = {
+    id: u.id,
     username: u.username,
+    blockedByMe: (block?.rowCount ?? 0) > 0,
     memberSince: u.created_at,
     identityVerified: u.identity_verified,
     highTrustApproved: u.high_trust_approved,

@@ -253,6 +253,47 @@ describe("hard rules", () => {
     await request(app).get("/api/jobs").query({ when: "someday" }).expect(400);
   });
 
+  it("blocking hides each side from the other and stops new applications", async () => {
+    const employer = await signUp("blocking_shop");
+    const worker = await signUp("blocked_worker");
+    const other = await signUp("bystander");
+    const job = await postJob(employer.agent, "errands", "Blockfilter errand");
+    const second = await postJob(employer.agent, "errands", "Blockfilter second");
+    const visibleTo = async (agent: Agent) =>
+      (await agent.get("/api/jobs").query({ q: "Blockfilter" }).expect(200)).body.jobs.length;
+
+    await worker.agent.post(`/api/jobs/${job}/applications`).send({ message: "I would like this job." }).expect(201);
+    expect((await employer.agent.get(`/api/jobs/${job}/applications`).expect(200)).body.applicants).toHaveLength(1);
+
+    await employer.agent.post("/api/users/nobody_here/block").expect(404);
+    await employer.agent.post(`/api/users/${employer.username}/block`).expect(400);
+    await employer.agent.post(`/api/users/${worker.username}/block`).expect(204);
+    await employer.agent.post(`/api/users/${worker.username}/block`).expect(204); // idempotent
+
+    expect((await employer.agent.get("/api/me/blocks").expect(200)).body.blocks.map((b: { username: string }) => b.username)).toEqual([
+      worker.username,
+    ]);
+    expect((await request(app).get(`/api/users/${worker.username}`).expect(200)).body.profile.blockedByMe).toBe(false);
+    expect((await employer.agent.get(`/api/users/${worker.username}`).expect(200)).body.profile.blockedByMe).toBe(true);
+
+    // Their open application is closed, and they no longer see or can apply to the employer's jobs.
+    expect((await employer.agent.get(`/api/jobs/${job}/applications`).expect(200)).body.applicants).toHaveLength(0);
+    expect(await visibleTo(worker.agent)).toBe(0);
+    expect(await visibleTo(other.agent)).toBe(2);
+    const apply = await worker.agent.post(`/api/jobs/${second}/applications`).send({ message: "Trying again anyway." });
+    expect(apply.status).toBe(403);
+    expect(apply.body.error.code).toBe("blocked");
+
+    // Blocking works both ways: the blocked worker blocking back changes nothing, and unblocking restores access.
+    await employer.agent.delete(`/api/users/${worker.username}/block`).expect(204);
+    expect(await visibleTo(worker.agent)).toBe(2);
+    await worker.agent.post(`/api/users/${employer.username}/block`).expect(204);
+    expect(await visibleTo(worker.agent)).toBe(0);
+    expect(await visibleTo(employer.agent)).toBe(2); // the owner still sees their own jobs
+    await worker.agent.post(`/api/jobs/${second}/applications`).send({ message: "Trying again anyway." }).expect(403);
+    await worker.agent.post("/api/users/someone/block").expect(404);
+  });
+
   it("does not let employers apply to their own jobs", async () => {
     const employer = await signUp("self_applier");
     const job = await postJob(employer.agent, "errands", "Deliver documents");

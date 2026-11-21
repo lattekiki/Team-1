@@ -1,16 +1,22 @@
-import { Briefcase, MapPin, Star } from "lucide-react";
-import { Link, useParams } from "react-router";
+import { Ban, Briefcase, MapPin, Star } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router";
 import type { PublicProfile } from "@team1/shared";
-import { container, EmptyState, ErrorBox, Rating, Spinner, StatusPill } from "../components/ui.tsx";
+import { ReportButton } from "../components/Modals.tsx";
+import { btn, container, EmptyState, ErrorBox, Rating, Spinner, StatusPill } from "../components/ui.tsx";
+import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
 import { initials } from "../lib/format.ts";
 import { useI18n } from "../lib/i18n.tsx";
-import { useApi } from "../lib/useApi.ts";
+import { useToast } from "../lib/toast.tsx";
+import { useAction, useApi } from "../lib/useApi.ts";
 
 export function PublicProfilePage() {
   const { username } = useParams();
   const { user } = useAuth();
   const { t, tp, fmt } = useI18n();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const { busy, run } = useAction();
   const res = useApi<{ profile: PublicProfile }>(`/users/${encodeURIComponent(username ?? "")}`);
 
   if (res.loading && !res.data) return <Spinner />;
@@ -23,6 +29,21 @@ export function PublicProfilePage() {
   }
   const p = res.data.profile;
   const isMe = user?.username === p.username;
+
+  const toggleBlock = async () => {
+    if (!user) return navigate(`/login?next=/u/${p.username}`);
+    if (!p.blockedByMe && !confirm(t("confirmBlock", { username: p.username }))) return;
+    const ok = await run(async () => {
+      await api(`/users/${encodeURIComponent(p.username)}/block`, {
+        method: p.blockedByMe ? "DELETE" : "POST",
+      });
+      return true;
+    }, (m) => toast(m, "error"));
+    if (ok) {
+      toast(p.blockedByMe ? t("toastUnblocked", { username: p.username }) : t("toastBlocked", { username: p.username }));
+      res.reload();
+    }
+  };
 
   return (
     <section className="py-12">
@@ -49,6 +70,18 @@ export function PublicProfilePage() {
             </div>
           </div>
         </div>
+
+        {p.blockedByMe && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-sm text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="flex items-start gap-2">
+              <Ban className="w-4 h-4 shrink-0 mt-0.5" />
+              {t("blockedBanner")}
+            </p>
+            <button disabled={busy} onClick={toggleBlock} className={btn.light}>
+              {t("unblockUser", { username: p.username })}
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {p.worker && (
@@ -113,6 +146,22 @@ export function PublicProfilePage() {
             </EmptyState>
           )}
         </div>
+
+        {user && !isMe && (
+          <div className="flex flex-wrap items-center gap-4 pt-2">
+            {!p.blockedByMe && (
+              <button
+                disabled={busy}
+                onClick={toggleBlock}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-zinc-500 hover:text-red-700"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                {t("blockUser", { username: p.username })}
+              </button>
+            )}
+            <ReportButton targetType="user" targetId={p.id} label={t("reportUser")} />
+          </div>
+        )}
       </div>
     </section>
   );

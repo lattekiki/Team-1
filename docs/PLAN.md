@@ -34,6 +34,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - Audit log for admin actions (§19)
 - Seed data + automated API test of the DoD journey (§35)
 - English, Afaan Oromoo and Amharic UI (typed dictionaries in `apps/web/src/lib/locales`; API errors carry stable codes the client translates)
+- Block user: either side can block; blocked pairs are hidden from job browse/applicant lists and cannot apply, select, or rebook each other; pending applications between them are withdrawn/rejected; unblock from the public profile or the blocked list on `/profile`
 
 ### Stubbed (interface exists, no real provider)
 - **OTP/SMS**: `OtpProvider` interface, `ConsoleOtpProvider` implementation
@@ -41,7 +42,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - **File uploads**: verification takes a text note/reference only; no identity documents stored yet
 
 ### Deferred (Phase 2+)
-Real SMS, payment provider, document upload storage, distance/map search, block user, disputes workflow, support tickets, favorites, business/bulk jobs, all AI features, push/SMS notifications.
+Real SMS, payment provider, document upload storage, distance/map search, disputes workflow, support tickets, favorites, business/bulk jobs, all AI features, push/SMS notifications.
 
 ## 3. Repo layout
 

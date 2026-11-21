@@ -1,4 +1,4 @@
-import { BadgeCheck, Briefcase, Hammer, ShieldCheck, UserRound } from "lucide-react";
+import { BadgeCheck, Ban, Briefcase, Hammer, ShieldCheck, UserRound } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import {
@@ -6,6 +6,7 @@ import {
   EXPERIENCE_LEVELS,
   JIMMA_AREAS,
   LANGUAGES,
+  type BlockedUser,
   type EmployerType,
   type ExperienceLevel,
   type Language,
@@ -15,7 +16,7 @@ import {
   type VerificationKind,
   type VerificationRecord,
 } from "@team1/shared";
-import { btn, container, ErrorBox, field, SectionTitle, Spinner, StatusPill } from "../components/ui.tsx";
+import { btn, container, EmptyState, ErrorBox, field, SectionTitle, Spinner, StatusPill } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
@@ -456,6 +457,50 @@ function VerificationSection({ user, mode }: { user: Me; mode: Mode }) {
   );
 }
 
+function BlockedList() {
+  const { t, fmt } = useI18n();
+  const toast = useToast();
+  const { busy, run } = useAction();
+  const res = useApi<{ blocks: BlockedUser[] }>("/me/blocks");
+
+  const unblock = async (username: string) => {
+    const ok = await run(async () => {
+      await api(`/users/${encodeURIComponent(username)}/block`, { method: "DELETE" });
+      return true;
+    }, (m) => toast(m, "error"));
+    if (ok) {
+      toast(t("toastUnblocked", { username }));
+      res.reload();
+    }
+  };
+
+  if (res.loading && !res.data) return <Spinner />;
+  if (!res.data?.blocks.length) {
+    return (
+      <EmptyState icon={Ban} title={t("blockedListEmpty")}>
+        {t("blockedListHint")}
+      </EmptyState>
+    );
+  }
+  return (
+    <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-2xl">
+      {res.data.blocks.map((b) => (
+        <li key={b.username} className="p-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+          <div>
+            <Link to={`/u/${b.username}`} className="font-bold hover:underline">
+              @{b.username}
+            </Link>
+            <p className="text-[11px] text-zinc-500">{t("blockedOn", { date: fmt.date(b.createdAt) })}</p>
+          </div>
+          <button disabled={busy} onClick={() => unblock(b.username)} className={btn.ghost}>
+            {t("unblock")}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function ProfilePage() {
   const { user, setMode } = useAuth();
   const { t } = useI18n();
@@ -516,6 +561,10 @@ export function ProfilePage() {
 
         <Card icon={ShieldCheck} title={t("verificationTitle")}>
           <VerificationSection user={user} mode={mode} />
+        </Card>
+
+        <Card icon={Ban} title={t("blockedListTitle")}>
+          <BlockedList />
         </Card>
       </div>
     </section>
