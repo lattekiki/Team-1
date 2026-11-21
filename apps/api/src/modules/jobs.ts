@@ -4,6 +4,7 @@ import {
   jobBulkCreateSchema,
   jobCreateSchema,
   jobQuerySchema,
+  jobSuggestSchema,
   jobUpdateSchema,
   type JobSummary,
   type JobWhen,
@@ -15,6 +16,7 @@ import { idParam } from "../lib/http.ts";
 import { evaluateEligibility, loadWorkerTrust, type WorkerTrust } from "../lib/eligibility.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
+import { loadWorkerMatchProfile, scoreJobForWorker, suggestCategorySlugs } from "../lib/matching.ts";
 
 const JOB_SELECT = `
   select j.*, c.slug as category_slug, c.name as category_name,
@@ -203,6 +205,60 @@ jobsRouter.get("/me/jobs", requireAuth, async (req, res) => {
   const me = currentUser(req);
   const { rows } = await pool.query(`${JOB_SELECT} where j.employer_id = $1 order by j.created_at desc`, [me.id]);
   res.json({ jobs: rows.map((r) => toJobSummary(r, me.id, null)) });
+});
+
+jobsRouter.get("/me/recommended-jobs", requireAuth, async (req, res) => {
+  await expireStaleJobs();
+  const me = currentUser(req);
+  const [trust, profile] = await Promise.all([loadWorkerTrust(pool, me.id), loadWorkerMatchProfile(pool, me.id)]);
+  const { rows } = await pool.query(
+    `${JOB_SELECT}
+     where j.status = 'published'
+       and j.invited_worker_id is null
+       and j.employer_id <> $1
+       and (j.application_deadline is null or j.application_deadline > now())
+       and ${notBlockedSql("$1::uuid", "j.employer_id")}
+       and not exists (
+         select 1 from applications a2
+         where a2.job_id = j.id and a2.worker_id = $1 and a2.status <> 'withdrawn'
+       )
+     order by j.published_at desc nulls last
+     limit 40`,
+    [me.id],
+  );
+  const scored = rows
+    .map((r) => {
+      const match = scoreJobForWorker(profile, trust, {
+        categoryId: r.category_id,
+        tier: r.tier,
+        area: r.area,
+        lat: r.lat != null ? Number(r.lat) : null,
+        lng: r.lng != null ? Number(r.lng) : null,
+      });
+      if (!match) return null;
+      return { ...toJobSummary(r, me.id, trust), match };
+    })
+    .filter((j): j is JobSummary & { match: NonNullable<JobSummary["match"]> } => j != null)
+    .sort((a, b) => b.match.score - a.match.score);
+  res.json({ jobs: scored.slice(0, 8) });
+});
+
+jobsRouter.post("/jobs/suggest", requireAuth, async (req, res) => {
+  const body = jobSuggestSchema.parse(req.body);
+  const ranked = suggestCategorySlugs(body.title, body.description);
+  const { rows } = await pool.query(
+    "select id, slug, name, tier from job_categories where active order by id",
+  );
+  const bySlug = new Map(rows.map((c) => [c.slug as string, c]));
+  const suggestions = ranked
+    .map((r) => {
+      const c = bySlug.get(r.slug);
+      if (!c) return null;
+      return { category: { id: c.id, slug: c.slug, name: c.name, tier: c.tier }, hits: r.hits };
+    })
+    .filter((s): s is NonNullable<typeof s> => s != null)
+    .slice(0, 3);
+  res.json({ suggestions });
 });
 
 jobsRouter.get("/jobs/:id", async (req, res) => {

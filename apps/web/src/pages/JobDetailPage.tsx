@@ -74,6 +74,11 @@ export function ApplicantCard({ applicant, onChanged }: { applicant: Applicant; 
       <p className="text-sm mt-3.5 leading-relaxed text-zinc-600">“{applicant.message}”</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        {applicant.match?.reasons.map((reason) => (
+          <span key={reason} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800">
+            {t(`match_${reason}` as "match_skill")}
+          </span>
+        ))}
         {applicant.proposedPay != null && (
           <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900">
             {t("applicantProposes", { amount: applicant.proposedPay.toLocaleString("en-US") })}

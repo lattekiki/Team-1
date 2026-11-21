@@ -8,6 +8,7 @@ import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
 import { initialPaymentStatus, recordPaymentEvent } from "../lib/payments.ts";
+import { scoreApplicantForJob } from "../lib/matching.ts";
 import { reputationFor } from "../lib/stats.ts";
 import { expireStaleJobs } from "./jobs.ts";
 
@@ -86,7 +87,7 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
   const { rows } = await pool.query(
     `select a.id, a.status, a.message, a.proposed_pay, a.created_at,
             j.id as job_id, j.title as job_title, j.tier as job_tier, j.status as job_status,
-            j.workers_needed,
+            j.workers_needed, j.category_id, j.area as job_area,
             (select count(*) from pairings p2
               where p2.job_id = j.id
                 and p2.status in ('pending_confirmation', 'confirmed', 'in_progress', 'completed'))::int as filled_slots,
@@ -94,7 +95,11 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
             w.experience_level, coalesce(w.area, '') as area,
             p.id as pairing_id,
             coalesce((select json_agg(json_build_object('slug', s.slug, 'name', s.name) order by s.name)
-                       from user_skills us join skills s on s.id = us.skill_id where us.user_id = u.id), '[]') as skills
+                       from user_skills us join skills s on s.id = us.skill_id where us.user_id = u.id), '[]') as skills,
+            coalesce((select array_agg(distinct s.category_id)
+                       from user_skills us join skills s on s.id = us.skill_id where us.user_id = u.id), '{}') as skill_category_ids,
+            (select count(*) from pairings p3 join jobs j3 on j3.id = p3.job_id
+              where p3.worker_id = u.id and p3.status = 'completed' and j3.category_id = j.category_id)::int as completed_in_category
      from applications a
      join jobs j on j.id = a.job_id
      join users u on u.id = a.worker_id
@@ -108,8 +113,16 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
     pool,
     rows.map((r) => r.worker_id),
   );
-  return rows.map((r) => {
+  const mapped: Applicant[] = rows.map((r) => {
     const rp = rep.get(r.worker_id);
+    const match = scoreApplicantForJob(
+      { categoryId: r.category_id, area: r.job_area },
+      {
+        area: r.area,
+        skillCategoryIds: r.skill_category_ids ?? [],
+        completedInCategory: r.completed_in_category ?? 0,
+      },
+    );
     return {
       id: r.id,
       status: r.status,
@@ -136,9 +149,14 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
         status: r.job_status,
         workersNeeded: r.workers_needed,
         filledSlots: r.filled_slots ?? 0,
+        categoryId: r.category_id,
       },
+      match,
     };
   });
+  const pending = mapped.filter((a) => a.status === "pending").sort((a, b) => (b.match?.score ?? 0) - (a.match?.score ?? 0));
+  const rest = mapped.filter((a) => a.status !== "pending");
+  return [...pending, ...rest];
 }
 
 applicationsRouter.get("/jobs/:id/applications", requireAuth, async (req, res) => {

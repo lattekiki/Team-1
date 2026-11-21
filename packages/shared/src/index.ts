@@ -26,6 +26,8 @@ export const PAIRING_STATUSES = [
 export const CONTACT_VISIBLE_PAIRING_STATUSES = ["confirmed", "in_progress", "completed", "disputed"] as const;
 export const PAYMENT_STATUSES = ["not_required", "pending", "held", "paid", "refunded", "failed"] as const;
 export const PAYMENTS_MODES = ["off", "manual", "mock_escrow", "chapa"] as const;
+/** Explainable matching reasons (never a substitute for tier eligibility). */
+export const MATCH_REASONS = ["skill", "same_area", "nearby", "similar_work", "open_in_area"] as const;
 
 export const JIMMA_AREAS = [
   { id: "Kochi", am: "ኮቺ" },
@@ -67,6 +69,8 @@ export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 export type PairingStatus = (typeof PAIRING_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type PaymentsMode = (typeof PAYMENTS_MODES)[number];
+export type MatchReason = (typeof MATCH_REASONS)[number];
+export type JobMatch = { score: number; reasons: MatchReason[] };
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
@@ -157,6 +161,10 @@ const jobChecks = <T extends z.ZodType<Partial<z.infer<typeof jobFields>>>>(sche
 
 export const jobCreateSchema = jobChecks(jobFields.extend({ publish: z.boolean().default(false) }));
 export const jobUpdateSchema = jobChecks(jobFields.partial());
+export const jobSuggestSchema = z.object({
+  title: z.string().trim().max(120).default(""),
+  description: z.string().trim().max(4000).default(""),
+});
 
 const shiftSchema = z
   .object({
@@ -324,6 +332,8 @@ export type JobSummary = {
   eligibility: Eligibility | null;
   /** True when the signed-in viewer has saved this job. */
   saved: boolean;
+  /** Present on recommended-job lists. */
+  match?: JobMatch;
 };
 
 export type Applicant = {
@@ -352,7 +362,10 @@ export type Applicant = {
     status: JobStatus;
     workersNeeded: number;
     filledSlots: number;
+    categoryId?: number;
   };
+  /** Fit hints for the employer — never hides zero-review workers. */
+  match?: JobMatch;
 };
 
 export type MyApplication = {

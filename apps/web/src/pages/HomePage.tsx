@@ -6,11 +6,13 @@ import { ApplyModal } from "../components/ApplyModal.tsx";
 import { HeroIllustration, HowItWorksIllustration } from "../components/Illustrations.tsx";
 import { JobCard } from "../components/JobCard.tsx";
 import { CategoryIcon, container } from "../components/ui.tsx";
+import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useApi } from "../lib/useApi.ts";
 
 export function HomePage() {
   const { t, tp, fmt } = useI18n();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [area, setArea] = useState("");
@@ -18,6 +20,7 @@ export function HomePage() {
   const stats = useApi<{ stats: PublicStats }>("/stats");
   const categories = useApi<{ categories: Category[] }>("/categories");
   const jobs = useApi<{ jobs: JobSummary[] }>("/jobs?limit=6");
+  const recommended = useApi<{ jobs: JobSummary[] }>(user?.activeMode === "worker" ? "/me/recommended-jobs" : null);
 
   const search = (e: FormEvent) => {
     e.preventDefault();
@@ -155,6 +158,24 @@ export function HomePage() {
         </div>
       </section>
 
+      {recommended.data && recommended.data.jobs.length > 0 && (
+        <section className="py-10 border-t border-stone-200/60">
+          <div className={container}>
+            <div className="flex items-end justify-between gap-4 mb-6">
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900">{t("recommendedJobsTitle")}</h2>
+              <Link to="/dashboard" className="text-sm font-bold text-zinc-900 hover:underline">
+                {t("seeAllJobs")}
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {recommended.data.jobs.slice(0, 3).map((job) => (
+                <JobCard key={job.id} job={job} onApply={setApplying} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="py-16">
         <div className={container}>
           <div className="flex items-end justify-between gap-4 mb-8">
@@ -209,7 +230,16 @@ export function HomePage() {
         </div>
       </section>
 
-      {applying && <ApplyModal job={applying} onClose={() => setApplying(null)} onApplied={jobs.reload} />}
+      {applying && (
+        <ApplyModal
+          job={applying}
+          onClose={() => setApplying(null)}
+          onApplied={() => {
+            jobs.reload();
+            recommended.reload();
+          }}
+        />
+      )}
     </>
   );
 }

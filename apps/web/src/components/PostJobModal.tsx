@@ -66,6 +66,28 @@ export function PostJobModal({
   ]);
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const [suggesting, setSuggesting] = useState(false);
+
+  const suggestCategory = async () => {
+    setError(null);
+    setSuggesting(true);
+    try {
+      const res = await api<{
+        suggestions: { category: { id: number; slug: string; name: string; tier: string }; hits: number }[];
+      }>("/jobs/suggest", { body: { title: form.title, description: form.description } });
+      const top = res.suggestions[0];
+      if (!top) {
+        toast(t("postSuggestNone"), "error");
+        return;
+      }
+      set("categoryId", String(top.category.id));
+      toast(t("postSuggestApplied", { name: fmt.category(top.category.slug, top.category.name) }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("postSuggestNone"));
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   const cats = categories.data?.categories ?? [];
   const selected = cats.find((c) => String(c.id) === form.categoryId);
@@ -154,9 +176,19 @@ export function PostJobModal({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label htmlFor="category" className={field.label}>
-              {t("postCategoryLabel")}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="category" className={field.label}>
+                {t("postCategoryLabel")}
+              </label>
+              <button
+                type="button"
+                disabled={suggesting || busy || form.title.trim().length < 3}
+                onClick={() => void suggestCategory()}
+                className="text-[11px] font-bold text-zinc-700 hover:underline disabled:opacity-40"
+              >
+                {t("postSuggestCategory")}
+              </button>
+            </div>
             <select
               id="category"
               required

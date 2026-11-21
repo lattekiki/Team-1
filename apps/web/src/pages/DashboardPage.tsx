@@ -3,6 +3,7 @@ import {
   Award,
   Bookmark,
   Briefcase,
+  Sparkles,
   CheckCircle2,
   Circle,
   ClipboardList,
@@ -167,6 +168,7 @@ function WorkerDashboard({ user }: { user: Me }) {
   const pairings = useApi<{ pairings: Pairing[] }>("/me/pairings?role=worker");
   const rebookings = useApi<{ rebookings: Rebooking[] }>("/me/rebookings");
   const favorites = useApi<{ jobs: JobSummary[] }>("/me/favorites");
+  const recommended = useApi<{ jobs: JobSummary[] }>("/me/recommended-jobs");
 
   const incoming = rebookings.data?.rebookings.filter((r) => r.direction === "incoming" && r.status === "pending") ?? [];
   const pairingList = pairings.data?.pairings ?? [];
@@ -178,6 +180,21 @@ function WorkerDashboard({ user }: { user: Me }) {
   return (
     <div className="space-y-10">
       <ReputationBanner user={user} hasSkills={(profile.data?.worker?.skillIds.length ?? 0) > 0} />
+
+      {(recommended.loading || (recommended.data?.jobs.length ?? 0) > 0) && (
+        <div className="space-y-3">
+          <SectionTitle icon={Sparkles}>{t("recommendedJobsTitle")}</SectionTitle>
+          {recommended.loading && !recommended.data ? (
+            <Spinner />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(recommended.data?.jobs ?? []).map((job) => (
+                <JobCard key={job.id} job={job} onApply={setApplying} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {incoming.length > 0 && (
         <div className="space-y-3">
@@ -289,6 +306,7 @@ function WorkerDashboard({ user }: { user: Me }) {
             setApplying(null);
             applications.reload();
             favorites.reload();
+            recommended.reload();
           }}
         />
       )}

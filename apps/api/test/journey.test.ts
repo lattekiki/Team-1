@@ -255,6 +255,35 @@ describe("hard rules", () => {
     await apply().expect(201);
   });
 
+  it("recommends eligible jobs and suggests a category from the title", async () => {
+    const employer = await signUp("match_shop");
+    const worker = await signUp("match_hand");
+    await employer.agent.patch("/api/me").send({ activeMode: "employer" }).expect(200);
+    const plumbingJob = await postJob(employer.agent, "plumbing", "Fix leaky sink");
+    await postJob(employer.agent, "shop-help", "Weekend till");
+
+    const skills = await request(app).get("/api/skills").expect(200);
+    const plumbing = skills.body.skills.find((s: { slug: string }) => s.slug === "plumbing");
+    await worker.agent.put("/api/me/worker-profile").send({ bio: "Pipes", area: "Merkato", skillIds: [plumbing.id] }).expect(200);
+
+    const rec = await worker.agent.get("/api/me/recommended-jobs").expect(200);
+    const ids = rec.body.jobs.map((j: { id: string }) => j.id);
+    expect(ids).toContain(plumbingJob);
+    const plum = rec.body.jobs.find((j: { id: string }) => j.id === plumbingJob);
+    expect(plum.match.reasons).toEqual(expect.arrayContaining(["skill", "same_area"]));
+
+    const vip = await postJob(employer.agent, "childcare", "After-school care");
+    const rec2 = await worker.agent.get("/api/me/recommended-jobs").expect(200);
+    expect(rec2.body.jobs.some((j: { id: string }) => j.id === vip)).toBe(false);
+
+    const guest = await signUp("match_boss");
+    const suggested = await guest.agent
+      .post("/api/jobs/suggest")
+      .send({ title: "Kitchen sink leak", description: "Need a plumber" })
+      .expect(200);
+    expect(suggested.body.suggestions[0].category.slug).toBe("plumbing");
+  });
+
   it("lets a user save and remove a web push subscription", async () => {
     const health = await request(app).get("/api/health").expect(200);
     expect(health.body.push).toBe(true);

@@ -102,6 +102,14 @@ export function JobCard({
               {t("negotiablePay")}
             </span>
           )}
+          {job.match?.reasons.map((reason) => (
+            <span
+              key={reason}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${dark ? "bg-emerald-500/20 text-emerald-200" : "bg-emerald-50 text-emerald-800"}`}
+            >
+              {t(`match_${reason}` as "match_skill")}
+            </span>
+          ))}
         </div>
 
         <div className={`mt-4 space-y-1.5 text-xs ${dark ? "text-zinc-300" : "text-zinc-600"}`}>
