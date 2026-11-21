@@ -71,6 +71,9 @@ export function ApplicantCard({ applicant, onChanged }: { applicant: Applicant; 
         </StatusPill>
       </div>
 
+      {applicant.match?.blurb && (
+        <p className="text-xs mt-3 text-emerald-800 leading-snug">{applicant.match.blurb}</p>
+      )}
       <p className="text-sm mt-3.5 leading-relaxed text-zinc-600">“{applicant.message}”</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -172,6 +175,7 @@ export function JobDetailPage() {
               {!j.isOwner && <SaveJobButton jobId={j.id} saved={j.saved} onChanged={() => job.reload()} />}
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight mt-4">{j.title}</h1>
+            {j.match?.blurb && <p className="text-sm text-emerald-800 mt-2">{j.match.blurb}</p>}
             <p className="text-sm text-zinc-500 mt-1">
               {fmt.category(j.category.slug, j.category.name)} • {t("postedBy")}{" "}
               <Link to={`/u/${j.employer.username}`} className="font-semibold text-zinc-800 hover:underline">

@@ -7,6 +7,7 @@ import { useI18n } from "../lib/i18n.tsx";
 import { en } from "../lib/locales/en.ts";
 import { useToast } from "../lib/toast.tsx";
 import { useAction, useApi } from "../lib/useApi.ts";
+import { AssistButton } from "./AssistButton.tsx";
 import { btn, ErrorBox, field, Modal } from "./ui.tsx";
 
 type ShiftRow = { startsAt: string; endsAt: string };
@@ -417,9 +418,23 @@ export function PostJobModal({
         </label>
 
         <div>
-          <label htmlFor="desc" className={field.label}>
-            {t("postDescLabel")}
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="desc" className={field.label}>
+              {t("postDescLabel")}
+            </label>
+            <AssistButton
+              kind="job_description"
+              disabled={busy || form.title.trim().length < 3}
+              payload={{
+                title: form.title,
+                description: form.description,
+                notes: form.description,
+                area: form.area,
+                categoryName: selected ? fmt.category(selected.slug, selected.name) : "",
+              }}
+              onDraft={(text) => set("description", text)}
+            />
+          </div>
           <textarea
             id="desc"
             rows={3}

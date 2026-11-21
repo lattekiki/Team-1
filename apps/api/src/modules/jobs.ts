@@ -16,7 +16,8 @@ import { idParam } from "../lib/http.ts";
 import { evaluateEligibility, loadWorkerTrust, type WorkerTrust } from "../lib/eligibility.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
-import { loadWorkerMatchProfile, scoreJobForWorker, suggestCategorySlugs } from "../lib/matching.ts";
+import { narrateMatches } from "../lib/match-narrate.ts";
+import { loadWorkerMatchProfile, scoreJobForWorker, suggestCategorySlugs, templateMatchBlurb } from "../lib/matching.ts";
 
 const JOB_SELECT = `
   select j.*, c.slug as category_slug, c.name as category_name,
@@ -239,8 +240,22 @@ jobsRouter.get("/me/recommended-jobs", requireAuth, async (req, res) => {
       return { ...toJobSummary(r, me.id, trust), match };
     })
     .filter((j): j is JobSummary & { match: NonNullable<JobSummary["match"]> } => j != null)
-    .sort((a, b) => b.match.score - a.match.score);
-  res.json({ jobs: scored.slice(0, 8) });
+    .sort((a, b) => b.match.score - a.match.score)
+    .slice(0, 8)
+    .map((j) => ({
+      ...j,
+      match: {
+        ...j.match,
+        blurb: templateMatchBlurb({ title: j.title, area: j.area, reasons: j.match.reasons }),
+      },
+    }));
+  const narrated = await narrateMatches(scored, { language: me.language, subject: "job" });
+  const byId = new Map(narrated.map((n) => [n.id, n.match]));
+  const order = narrated.map((n) => n.id);
+  const jobs = [...scored]
+    .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+    .map((j) => ({ ...j, match: byId.get(j.id) ?? j.match }));
+  res.json({ jobs });
 });
 
 jobsRouter.post("/jobs/suggest", requireAuth, async (req, res) => {
@@ -273,7 +288,24 @@ jobsRouter.get("/jobs/:id", async (req, res) => {
     (row.status !== "draft" && (row.invited_worker_id == null || row.invited_worker_id === viewerId));
   if (!canSee) throw notFound("Job not found");
   const trust = viewerId ? await loadWorkerTrust(pool, viewerId) : null;
-  res.json({ job: toJobSummary(row, viewerId, trust) });
+  const job = toJobSummary(row, viewerId, trust);
+  if (viewerId && trust && row.employer_id !== viewerId) {
+    const profile = await loadWorkerMatchProfile(pool, viewerId);
+    const match = scoreJobForWorker(profile, trust, {
+      categoryId: row.category_id,
+      tier: row.tier,
+      area: row.area,
+      lat: row.lat != null ? Number(row.lat) : null,
+      lng: row.lng != null ? Number(row.lng) : null,
+    });
+    if (match) {
+      job.match = {
+        ...match,
+        blurb: templateMatchBlurb({ title: job.title, area: job.area, reasons: match.reasons }),
+      };
+    }
+  }
+  res.json({ job });
 });
 
 async function insertJob(

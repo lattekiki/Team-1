@@ -87,6 +87,54 @@ export function scoreApplicantForJob(job: { categoryId: number; area: string }, 
   return { score, reasons };
 }
 
+const JOB_PHRASE: Record<MatchReason, string> = {
+  skill: "your listed skills match this category",
+  similar_work: "you have completed similar work",
+  same_area: "it is in your neighborhood",
+  nearby: "it is within your travel range",
+  open_in_area: "it is an open ordinary job you can apply to",
+};
+
+const APPLICANT_PHRASE: Record<MatchReason, string> = {
+  skill: "skills match this job category",
+  similar_work: "has completed similar work",
+  same_area: "lives in the same neighborhood",
+  nearby: "is nearby",
+  open_in_area: "applied — new workers stay visible",
+};
+
+export function templateMatchBlurb(input: {
+  title: string;
+  area: string;
+  reasons: MatchReason[];
+  subject?: "job" | "applicant";
+}): string {
+  const phrases = input.subject === "applicant" ? APPLICANT_PHRASE : JOB_PHRASE;
+  const why = input.reasons.map((r) => phrases[r]).join("; ");
+  if (input.subject === "applicant") {
+    return why ? `Fit: ${why}.` : `Applicant for ${input.title} in ${input.area}.`;
+  }
+  return why ? `${input.title} in ${input.area} — ${why}.` : `${input.title} in ${input.area}.`;
+}
+
+/** Keep every original item. Unknown ids from the model are ignored. */
+export function mergeLlmOrder<T extends { id: string }>(original: T[], orderedIds: string[]): T[] {
+  const byId = new Map(original.map((x) => [x.id, x]));
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const id of orderedIds) {
+    const item = byId.get(id);
+    if (item && !seen.has(id)) {
+      out.push(item);
+      seen.add(id);
+    }
+  }
+  for (const item of original) {
+    if (!seen.has(item.id)) out.push(item);
+  }
+  return out;
+}
+
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   errands: ["errand", "queue", "bill", "market run", "fetch"],
   "event-support": ["event", "wedding", "catering", "cooking", "usher"],

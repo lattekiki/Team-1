@@ -271,6 +271,7 @@ describe("hard rules", () => {
     expect(ids).toContain(plumbingJob);
     const plum = rec.body.jobs.find((j: { id: string }) => j.id === plumbingJob);
     expect(plum.match.reasons).toEqual(expect.arrayContaining(["skill", "same_area"]));
+    expect(plum.match.blurb).toMatch(/Merkato|skill/i);
 
     const vip = await postJob(employer.agent, "childcare", "After-school care");
     const rec2 = await worker.agent.get("/api/me/recommended-jobs").expect(200);

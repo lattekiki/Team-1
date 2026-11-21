@@ -12,7 +12,9 @@ import { paymentsRouter } from "./modules/payments.ts";
 import { profilesRouter } from "./modules/profiles.ts";
 import { safetyRouter } from "./modules/safety.ts";
 import { ticketsRouter } from "./modules/tickets.ts";
+import { assistRouter } from "./modules/assist.ts";
 import { paymentsConfig } from "./lib/payments.ts";
+import { assistConfig } from "./lib/llm.ts";
 import { otpProvider } from "./lib/otp.ts";
 import { objectStore } from "./lib/storage.ts";
 import { pushConfigured } from "./lib/push.ts";
@@ -55,6 +57,7 @@ export function createApp() {
       storage: objectStore.name,
       push: pushConfigured,
       notifySms: Boolean(env.NOTIFY_SMS),
+      assist: assistConfig(),
     });
   });
 
@@ -65,6 +68,7 @@ export function createApp() {
   api.use(authRouter);
   api.use(profilesRouter);
   api.use(jobsRouter);
+  api.use(assistRouter);
   api.use(applicationsRouter);
   api.use(pairingsRouter);
   api.use(safetyRouter);

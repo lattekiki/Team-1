@@ -9,6 +9,7 @@ export default defineConfig({
       NODE_ENV: "test",
       PAYMENTS_MODE: "mock_escrow",
       OTP_PROVIDER: "console",
+      LLM_PROVIDER: "template",
       STORAGE_BACKEND: "local",
       VAPID_PUBLIC_KEY:
         "BCArfHXexFfEUBVRdfqh2zkirDK0wzDlinNBDuBpdtQZQFd3RllojnequFb2Z8Frk5YvD7hbVBSedaKcSLATYdI",

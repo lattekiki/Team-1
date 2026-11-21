@@ -54,6 +54,16 @@ const envSchema = z
     VAPID_SUBJECT: z.string().default("mailto:pilot@hojiigo.local"),
     /** Also SMS high-priority alerts via OTP_PROVIDER (console logs when console). */
     NOTIFY_SMS: boolish,
+
+    /**
+     * off — hide writing assist.
+     * template (default) — local drafts, no external API.
+     * openai — OpenAI-compatible Chat Completions (set LLM_API_KEY).
+     */
+    LLM_PROVIDER: z.enum(["off", "template", "openai"]).default("template"),
+    LLM_API_KEY: z.string().optional(),
+    LLM_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
+    LLM_MODEL: z.string().default("gpt-4o-mini"),
   })
   .superRefine((e, ctx) => {
     if (e.OTP_PROVIDER === "africastalking" && (!e.AT_USERNAME || !e.AT_API_KEY)) {
@@ -85,6 +95,13 @@ const envSchema = z
         code: "custom",
         message: "CHAPA_SECRET_KEY is required when PAYMENTS_MODE=chapa",
         path: ["CHAPA_SECRET_KEY"],
+      });
+    }
+    if (e.LLM_PROVIDER === "openai" && !e.LLM_API_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        message: "LLM_API_KEY is required when LLM_PROVIDER=openai",
+        path: ["LLM_API_KEY"],
       });
     }
   });

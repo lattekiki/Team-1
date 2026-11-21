@@ -247,6 +247,10 @@ export const am: Messages = {
 
   applyTitle: "ልምድዎን እና ማመልከቻዎን ይጻፉ",
   applyPitchLabel: "ተዛማጅ ልምድዎ (አሠሪው ብቻ ያየዋል)",
+  assistWrite: "እንድጽፍ እርዳኝ",
+  assistWorking: "በመጻፍ ላይ…",
+  assistApplied: "ረቂቅ ገብቷል — ከመላክዎ በፊት ያርትዑት።",
+  err_assist_disabled: "የጽሑፍ እርዳታ ጠፍቷል።",
   applyPitchPlaceholder: "የሥራ ልምድዎን፣ የሚገኙበትን ጊዜ እና ለአካባቢው ምን ያህል ቅርብ እንደሆኑ ይግለጹ...",
   applyProposeLabel: "የተለየ ክፍያ ያቅርቡ (ብር፣ አማራጭ)",
   applyProposePlaceholder: "የተጠቀሰው፡ {pay}",

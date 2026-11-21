@@ -256,6 +256,10 @@ export const en = {
   // Apply modal
   applyTitle: "Write Your Experience & Pitch",
   applyPitchLabel: "Your relevant experience (only the employer sees this)",
+  assistWrite: "Help me write",
+  assistWorking: "Writing…",
+  assistApplied: "Draft inserted — edit it before sending.",
+  err_assist_disabled: "Writing assist is turned off.",
   applyPitchPlaceholder: "Describe your hands-on experience, availability, and how close you are to the area...",
   applyProposeLabel: "Propose a different amount (ETB, optional)",
   applyProposePlaceholder: "Listed: {pay}",

@@ -8,7 +8,8 @@ import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
 import { initialPaymentStatus, recordPaymentEvent } from "../lib/payments.ts";
-import { scoreApplicantForJob } from "../lib/matching.ts";
+import { narrateMatches } from "../lib/match-narrate.ts";
+import { scoreApplicantForJob, templateMatchBlurb } from "../lib/matching.ts";
 import { reputationFor } from "../lib/stats.ts";
 import { expireStaleJobs } from "./jobs.ts";
 
@@ -83,7 +84,7 @@ applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) 
   res.status(201).json({ application: { id: application.id, status: application.status } });
 });
 
-async function listApplicants(where: string, param: string): Promise<Applicant[]> {
+async function listApplicants(where: string, param: string, language: string): Promise<Applicant[]> {
   const { rows } = await pool.query(
     `select a.id, a.status, a.message, a.proposed_pay, a.created_at,
             j.id as job_id, j.title as job_title, j.tier as job_tier, j.status as job_status,
@@ -151,12 +152,37 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
         filledSlots: r.filled_slots ?? 0,
         categoryId: r.category_id,
       },
-      match,
+      match: {
+        ...match,
+        blurb: templateMatchBlurb({
+          title: r.job_title,
+          area: r.area,
+          reasons: match.reasons,
+          subject: "applicant",
+        }),
+      },
     };
   });
   const pending = mapped.filter((a) => a.status === "pending").sort((a, b) => (b.match?.score ?? 0) - (a.match?.score ?? 0));
   const rest = mapped.filter((a) => a.status !== "pending");
-  return [...pending, ...rest];
+  const narrated = await narrateMatches(
+    pending.map((a) => ({
+      id: a.id,
+      title: a.job.title,
+      area: a.worker.area,
+      match: a.match!,
+    })),
+    { language, subject: "applicant" },
+  );
+  const byId = new Map(narrated.map((n) => [n.id, n.match]));
+  const pendingOut = pending.map((a) => ({ ...a, match: byId.get(a.id) ?? a.match }));
+  const order = narrated.map((n) => n.id);
+  pendingOut.sort((a, b) => {
+    const ia = order.indexOf(a.id);
+    const ib = order.indexOf(b.id);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  return [...pendingOut, ...rest];
 }
 
 applicationsRouter.get("/jobs/:id/applications", requireAuth, async (req, res) => {
@@ -164,12 +190,12 @@ applicationsRouter.get("/jobs/:id/applications", requireAuth, async (req, res) =
   const job = (await pool.query("select employer_id from jobs where id = $1", [idParam(req)])).rows[0];
   if (!job) throw notFound("Job not found");
   if (job.employer_id !== me.id && me.role !== "admin") throw forbidden();
-  res.json({ applicants: await listApplicants("a.job_id = $1", idParam(req)) });
+  res.json({ applicants: await listApplicants("a.job_id = $1", idParam(req), me.language) });
 });
 
 applicationsRouter.get("/me/applicants", requireAuth, async (req, res) => {
   const me = currentUser(req);
-  res.json({ applicants: await listApplicants("j.employer_id = $1", me.id) });
+  res.json({ applicants: await listApplicants("j.employer_id = $1", me.id, me.language) });
 });
 
 applicationsRouter.get("/me/applications", requireAuth, async (req, res) => {

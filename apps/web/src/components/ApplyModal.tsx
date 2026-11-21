@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useToast } from "../lib/toast.tsx";
 import { useAction } from "../lib/useApi.ts";
+import { AssistButton } from "./AssistButton.tsx";
 import { btn, ErrorBox, field, Modal, TrustTierBadge } from "./ui.tsx";
 
 export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClose: () => void; onApplied: () => void }) {
@@ -52,9 +53,17 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
 
       <form onSubmit={submit} className="mt-4 space-y-4">
         <div>
-          <label htmlFor="pitch" className={field.label}>
-            {t("applyPitchLabel")}
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="pitch" className={field.label}>
+              {t("applyPitchLabel")}
+            </label>
+            <AssistButton
+              kind="apply_message"
+              disabled={busy}
+              payload={{ jobId: job.id, title: job.title, description: job.description, area: job.area }}
+              onDraft={setMessage}
+            />
+          </div>
           <textarea
             id="pitch"
             required

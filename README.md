@@ -27,6 +27,7 @@ Open http://localhost:5173.
 
 Signed-in workers see **suggested jobs** on Home and Dashboard (skills, area, similar completed work).
 Employers can tap **Suggest from title** when posting; applicant lists show the same fit chips without hiding new workers.
+**Help me write** on post-job and apply uses local templates by default (`LLM_PROVIDER=template`). Set `openai` plus `LLM_API_KEY` for a live model.
 
 ## Sign-in during development
 

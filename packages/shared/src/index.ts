@@ -70,7 +70,12 @@ export type PairingStatus = (typeof PAIRING_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type PaymentsMode = (typeof PAYMENTS_MODES)[number];
 export type MatchReason = (typeof MATCH_REASONS)[number];
-export type JobMatch = { score: number; reasons: MatchReason[] };
+export type JobMatch = {
+  score: number;
+  reasons: MatchReason[];
+  /** One-line why this is a fit (rules or LLM). */
+  blurb?: string;
+};
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
@@ -164,6 +169,19 @@ export const jobUpdateSchema = jobChecks(jobFields.partial());
 export const jobSuggestSchema = z.object({
   title: z.string().trim().max(120).default(""),
   description: z.string().trim().max(4000).default(""),
+});
+
+export const ASSIST_KINDS = ["job_description", "apply_message"] as const;
+export type AssistKind = (typeof ASSIST_KINDS)[number];
+export const assistRequestSchema = z.object({
+  kind: z.enum(ASSIST_KINDS),
+  title: z.string().trim().max(120).default(""),
+  description: z.string().trim().max(4000).default(""),
+  area: z.string().trim().max(80).default(""),
+  categoryName: z.string().trim().max(80).default(""),
+  notes: z.string().trim().max(2000).default(""),
+  /** When applying, the job being applied to (loads title/area server-side). */
+  jobId: z.string().uuid().optional(),
 });
 
 const shiftSchema = z

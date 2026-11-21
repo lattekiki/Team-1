@@ -111,6 +111,9 @@ export function JobCard({
             </span>
           ))}
         </div>
+        {job.match?.blurb && (
+          <p className={`mt-2 text-[11px] leading-snug ${dark ? "text-emerald-200/90" : "text-emerald-800"}`}>{job.match.blurb}</p>
+        )}
 
         <div className={`mt-4 space-y-1.5 text-xs ${dark ? "text-zinc-300" : "text-zinc-600"}`}>
           <div className="flex items-center gap-2">

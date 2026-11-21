@@ -42,7 +42,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow|chapa`. Manual/mock track `pending → held → paid|refunded`. **Chapa** opens hosted checkout, confirms via verify/webhook, refunds via Chapa API, and transfers to worker bank details when set (otherwise marks paid for merchant-balance payout). Legal review still required before a live pilot (SRS §12).
 
 ### Deferred (Phase 2+)
-LLM-backed chat assist or generative matching (optional later). Deterministic matching is shipped.
+None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
 
 ### Added after MVP journey
 - **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
@@ -58,6 +58,8 @@ LLM-backed chat assist or generative matching (optional later). Deterministic ma
 - **Cloud object storage**: S3-compatible backend (AWS/R2/MinIO) for verification files; local disk remains the default.
 - **Push / SMS alerts**: Web Push (VAPID + service worker) from Notifications; optional `NOTIFY_SMS` for high-priority events via the same SMS provider as OTP.
 - **Matching**: explainable job recommendations for workers (`GET /me/recommended-jobs`); applicant fit hints (skills/area/similar work — **never hides zero-review workers**); `POST /jobs/suggest` category from title keywords.
+- **Generative match blurbs**: rule-based one-liners always; when `LLM_PROVIDER=openai`, an optional batch call may reorder **already-eligible** jobs/applicants and rewrite blurbs — never drops ids, never uses rating as VIP eligibility.
+- **Writing assist**: `POST /assist` drafts job descriptions and apply pitches. `LLM_PROVIDER=template` (default, no API) or `openai` (OpenAI-compatible; falls back to template). `off` hides the buttons.
 
 ## 3. Repo layout
 
@@ -129,6 +131,7 @@ docs/PLAN.md
 | profiles | `PATCH /me` (username, language, active_mode), `GET /me/profile`, `PUT /me/worker-profile` (includes skill ids), `PUT /me/employer-profile`, `GET /users/:username` (public view with reviews) |
 | catalog | `GET /categories`, `GET /skills`, `GET /stats` (real counts for the home page) |
 | jobs | `GET /jobs` (filters: `q`, `category`, `tier`, `area`, `payType`, `minPay`, `when`, `near`+`radiusKm`, `eligibleOnly`), `GET /jobs/:id`, `POST /jobs`, `POST /jobs/bulk` (multi-shift), `POST /jobs/suggest`, `PATCH /jobs/:id`, `POST /jobs/:id/publish`, `POST /jobs/:id/cancel`, `GET /me/jobs`, `GET /me/recommended-jobs` |
+| assist | `GET /assist/config`, `POST /assist` (job_description / apply_message) |
 | applications | `POST /jobs/:id/applications`, `GET /jobs/:id/applications` (owner), `GET /me/applicants` (all my jobs), `POST /applications/:id/withdraw`, `POST /applications/:id/select`, `POST /applications/:id/reject`, `GET /me/applications` |
 | pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel`, `POST /pairings/:id/payment/{hold,verify,release,mark-paid,refund}` |
 | payments | `GET /payments/config` (mode + disclaimer); Chapa `GET /payments/chapa/callback`, `POST /payments/webhooks/chapa` |

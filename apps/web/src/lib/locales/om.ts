@@ -247,6 +247,10 @@ export const om: Messages = {
 
   applyTitle: "Muuxannoo fi Ibsa Kee Barreessi",
   applyPitchLabel: "Muuxannoo kee walsimu (hojjechiisaa qofatu arga)",
+  assistWrite: "Barreessuu na gargaari",
+  assistWorking: "Barreessaa jira…",
+  assistApplied: "Qabxiin galmaa'eera — erguu dura gulaali.",
+  err_assist_disabled: "Gargaarsi barreessuu cufameera.",
   applyPitchPlaceholder: "Muuxannoo hojii kee, yeroo ati qabdu fi naannoo sanitti hammam dhihoo akka jirtu ibsi...",
   applyProposeLabel: "Kaffaltii biraa yaadi (Birrii, dirqama miti)",
   applyProposePlaceholder: "Kan tarreeffame: {pay}",
