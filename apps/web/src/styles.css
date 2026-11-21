@@ -3,11 +3,16 @@
 
 @theme {
   --font-sans: "Plus Jakarta Sans", "Inter", "Noto Sans Ethiopic", ui-sans-serif, system-ui, sans-serif;
+  --color-canvas: #f7f3ec;
 }
 
 @layer base {
   body {
-    @apply bg-white text-zinc-900 antialiased selection:bg-zinc-900 selection:text-white;
+    @apply bg-canvas text-zinc-900 antialiased selection:bg-zinc-900 selection:text-white;
+    background-image:
+      radial-gradient(60rem 40rem at 0% 0%, rgb(217 119 6 / 0.07), transparent 60%),
+      radial-gradient(50rem 40rem at 100% 100%, rgb(5 150 105 / 0.07), transparent 60%);
+    background-attachment: fixed;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

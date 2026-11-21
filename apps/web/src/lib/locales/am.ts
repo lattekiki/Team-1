@@ -36,7 +36,7 @@ export const am: Messages = {
   navNotificationsAria: "ማሳወቂያዎች ({n} ያልተነበቡ)",
   workerMode: "የሠራተኛ ገጽ",
   employerMode: "የአሠሪ ገጽ",
-  footerNote: "Hojii Jimmaa / የጅማ ሥራ — የጅማ የሙከራ ገበያ • ግላዊነት እና ጥበቃ ይቀድማሉ",
+  footerNote: "የጅማ የሙከራ ገበያ • ግላዊነት እና ጥበቃ ይቀድማሉ",
 
   heroBadge: "ጅማ፣ ኢትዮጵያ • የአካባቢ የሙከራ ገበያ",
   heroTitle1: "ጅማ ውስጥ በፍጥነት",
@@ -347,7 +347,7 @@ export const am: Messages = {
   rateUser: "@{username}ን ይገምግሙ",
   rebookPendingNote: "የድጋሚ ቅጥር ጥያቄ ተልኳል — @{username}ን በመጠባበቅ ላይ።",
   rebookUser: "@{username}ን በድጋሚ ይቅጠሩ",
-  allDone: "ሁሉም ተጠናቋል። በHojii Jimmaa ስለሠሩ እናመሰግናለን!",
+  allDone: "ሁሉም ተጠናቋል። በHojiiGO ስለሠሩ እናመሰግናለን!",
   pairingStatusNote: "ሁኔታ፡ {status}",
   cancelPairing: "ስምምነቱን ይሰርዙ",
   confirmCancelPairing: "ይህን ስምምነት ይሰርዛሉ? ሌላኛው ወገን ይነገረዋል።",

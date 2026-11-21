@@ -67,18 +67,16 @@ function Header() {
   );
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-100">
+    <header className="sticky top-0 z-40 bg-canvas/85 backdrop-blur-md border-b border-stone-200/70">
       <div className={`${container} py-3 flex flex-wrap items-center justify-between gap-3`}>
         <Link to="/" className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-zinc-900 text-white flex items-center justify-center font-extrabold text-lg tracking-tighter shadow-sm">
-            HJ
+            HG
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-lg tracking-tight text-zinc-900">Hojii Jimmaa</span>
-              <span className="text-zinc-300">|</span>
-              <span className="font-bold text-base text-zinc-700">የጅማ ሥራ</span>
-            </div>
+            <span className="font-extrabold text-lg tracking-tight text-zinc-900">
+              Hojii<span className="text-emerald-600">GO</span>
+            </span>
             <p className="text-[11px] text-zinc-500 font-medium">{t("brandSub")}</p>
           </div>
         </Link>
@@ -214,8 +212,10 @@ export function Layout({ children }: { children: ReactNode }) {
       <footer className="bg-zinc-950 text-zinc-400 py-10 border-t border-zinc-900">
         <div className={`${container} flex flex-col sm:flex-row items-center justify-between gap-4`}>
           <div className="flex items-center gap-2.5 text-white font-extrabold text-sm">
-            <span className="px-2 py-1 rounded-lg bg-white text-zinc-900 text-xs">HJ</span>
-            <span>Hojii Jimmaa / የጅማ ሥራ</span>
+            <span className="px-2 py-1 rounded-lg bg-white text-zinc-900 text-xs">HG</span>
+            <span>
+              Hojii<span className="text-emerald-400">GO</span>
+            </span>
           </div>
           <p className="text-xs text-center sm:text-right">{t("footerNote")}</p>
         </div>

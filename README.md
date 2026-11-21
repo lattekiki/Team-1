@@ -1,4 +1,4 @@
-# Team-1 — Jimma flexible work marketplace (pilot)
+# HojiiGO — Jimma flexible work marketplace (pilot)
 
 A marketplace connecting people who want flexible work with households and businesses in Jimma, Ethiopia.
 Product spec: `SRS.docx`. Build plan, scope, data model and API: [`docs/PLAN.md`](docs/PLAN.md).

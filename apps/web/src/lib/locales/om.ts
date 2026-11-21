@@ -36,7 +36,7 @@ export const om: Messages = {
   navNotificationsAria: "Beeksisa ({n} hin dubbifamne)",
   workerMode: "Haala Hojjetaa",
   employerMode: "Haala Hojjechiisaa",
-  footerNote: "Hojii Jimmaa / የጅማ ሥራ — Gabaa Pilootii Jimmaa • Iccitii fi Nageenya Dursa",
+  footerNote: "Gabaa Pilootii Jimmaa • Iccitii fi Nageenya Dursa",
 
   heroBadge: "Jimma, Itoophiyaa • Gabaa Pilootii Naannoo",
   heroTitle1: "Jimmatti Dafii",
@@ -355,7 +355,7 @@ export const om: Messages = {
   rateUser: "@{username} madaali",
   rebookPendingNote: "Gaaffiin irra deebiin qacaruu ergameera — @{username} eegaa jira.",
   rebookUser: "@{username} irra deebiin qacari",
-  allDone: "Hundi xumurameera. Hojii Jimmaa fayyadamuu keetiif galatoomi!",
+  allDone: "Hundi xumurameera. HojiiGO fayyadamuu keetiif galatoomi!",
   pairingStatusNote: "Haala: {status}",
   cancelPairing: "Waliigaltee haqi",
   confirmCancelPairing: "Waliigaltee kana haqxa? Gareen biraa ni beeksifama.",

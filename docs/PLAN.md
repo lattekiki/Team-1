@@ -127,7 +127,7 @@ Errors are always `{ "error": { "code": string, "message": string, "details"?: u
 
 `/` home (search, real stats, categories, latest jobs) · `/login` (phone → code → username/language on first login, honours `?next=`) · `/jobs` browse + filters · `/jobs/:id` detail + apply, or owner view with applicants, edit/publish/cancel · `/dashboard` worker mode (reputation, tier progression, rebooking requests, active jobs, applications) or employer mode (post job, my jobs, applicants, pairings, re-book) · `/pairings/:id` lifecycle, contact, complete, review, rebook, report · `/profile` account, worker profile + skills, employer profile, verification requests · `/u/:username` public profile · `/notifications` · `/admin` overview, verification, reports, users, audit log.
 
-Creating and editing jobs happens in a modal (`PostJobModal`) rather than separate pages. Mobile-first layout with Tailwind 4 and lucide icons, following the supplied Hojii Jimmaa design.
+Creating and editing jobs happens in a modal (`PostJobModal`) rather than separate pages. Mobile-first layout with Tailwind 4 and lucide icons, following the supplied HojiiGO design.
 
 ## 9. Time-boxed milestones
 

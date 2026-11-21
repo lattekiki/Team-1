@@ -37,7 +37,7 @@ export const en = {
   navNotificationsAria: "Notifications ({n} unread)",
   workerMode: "Worker Mode",
   employerMode: "Employer Mode",
-  footerNote: "Hojii Jimmaa / የጅማ ሥራ — Jimma Pilot Marketplace • Privacy & Safeguarding First",
+  footerNote: "Jimma Pilot Marketplace • Privacy & Safeguarding First",
 
   // Home
   heroBadge: "Jimma, Ethiopia • Local Pilot Marketplace",
@@ -363,7 +363,7 @@ export const en = {
   rateUser: "Rate @{username}",
   rebookPendingNote: "Rebooking request sent — waiting for @{username}.",
   rebookUser: "Re-book @{username}",
-  allDone: "All done. Thanks for working through Hojii Jimmaa!",
+  allDone: "All done. Thanks for working through HojiiGO!",
   pairingStatusNote: "Status: {status}",
   cancelPairing: "Cancel pairing",
   confirmCancelPairing: "Cancel this pairing? The other side will be notified.",
