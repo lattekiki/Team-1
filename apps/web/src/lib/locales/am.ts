@@ -24,6 +24,8 @@ export const am: Messages = {
   applicants_other: "{n} አመልካቾች",
   workersNeeded_one: "{n} ሠራተኛ ያስፈልጋል",
   workersNeeded_other: "{n} ሠራተኞች ያስፈልጋሉ",
+  slotsFilled: "{filled} ከ{needed} መቀመጫ ተሞልቷል",
+  slotsFull: "ሁሉም መቀመጫዎች ተሞልተዋል",
 
   brandSub: "የጅማ ጊዜያዊ ሥራ እና የአካባቢ አገልግሎት",
   navFindJobs: "ሥራዎችን ያስሱ",
@@ -263,6 +265,13 @@ export const am: Messages = {
   toastJobUpdated: "ሥራው ተዘምኗል",
   toastJobPublished: "“{title}” ተለጥፏል",
   toastDraftSaved: "እንደ ረቂቅ ተቀምጧል",
+  bulkShiftsToggle: "ተመሳሳይ ሥራን ለብዙ ፈረቃዎች ይለጥፉ",
+  bulkShiftsHint: "እያንዳንዱ ፈረቃ የራሱ ዝርዝር ይሆናል — ርዕስ፣ ክፍያ እና የሚያስፈልጉ ሠራተኞች ተመሳሳይ ናቸው።",
+  bulkAddShift: "ሌላ ፈረቃ ጨምር",
+  bulkRemoveShift: "ፈረቃ አስወግድ",
+  bulkNeedTwoShifts: "ቢያንስ ሁለት ፈረቃዎች ከመጀመሪያ ሰዓት ጋር ያክሉ።",
+  toastBulkPublished: "ለ“{title}” {n} ፈረቃዎች ተለጥፈዋል",
+  err_duplicate_shift: "እያንዳንዱ ፈረቃ የተለየ የመጀመሪያ ሰዓት ሊኖረው ይገባል።",
 
   reviewTitle: "@{username}ን ይገምግሙ",
   reviewOverall: "አጠቃላይ",

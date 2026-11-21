@@ -150,6 +150,24 @@ const jobChecks = <T extends z.ZodType<Partial<z.infer<typeof jobFields>>>>(sche
 export const jobCreateSchema = jobChecks(jobFields.extend({ publish: z.boolean().default(false) }));
 export const jobUpdateSchema = jobChecks(jobFields.partial());
 
+const shiftSchema = z
+  .object({
+    startsAt: z.coerce.date(),
+    endsAt: optionalDate,
+  })
+  .refine((s) => !s.startsAt || !s.endsAt || s.endsAt > s.startsAt, {
+    message: "End time must be after start time",
+    path: ["endsAt"],
+  });
+
+/** One template job posted once per shift (business bulk hiring). */
+export const jobBulkCreateSchema = jobChecks(
+  jobFields.extend({
+    publish: z.boolean().default(true),
+    shifts: z.array(shiftSchema).min(2).max(14),
+  }),
+);
+
 export const JOB_WHEN = ["today", "tomorrow", "week"] as const;
 export type JobWhen = (typeof JOB_WHEN)[number];
 
@@ -276,6 +294,8 @@ export type JobSummary = {
   negotiable: boolean;
   paymentTerms: string;
   workersNeeded: number;
+  /** Pairings that still hold a seat (pending confirm through completed). */
+  filledSlots: number;
   applicationDeadline: string | null;
   applicationCount: number;
   createdAt: string;
@@ -306,7 +326,14 @@ export type Applicant = {
     area: string;
     skills: SkillTag[];
   };
-  job: { id: string; title: string; tier: Tier; status: JobStatus };
+  job: {
+    id: string;
+    title: string;
+    tier: Tier;
+    status: JobStatus;
+    workersNeeded: number;
+    filledSlots: number;
+  };
 };
 
 export type MyApplication = {

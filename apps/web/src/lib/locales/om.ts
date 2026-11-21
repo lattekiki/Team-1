@@ -24,6 +24,8 @@ export const om: Messages = {
   applicants_other: "Iyyattoota {n}",
   workersNeeded_one: "Hojjetaa {n} barbaachisa",
   workersNeeded_other: "Hojjettoota {n} barbaachisu",
+  slotsFilled: "Teessoo {filled}/{needed} guutameera",
+  slotsFull: "Teessoonni hundi guutaniiru",
 
   brandSub: "Gabaa Hojii Naannoo Jimmaa",
   navFindJobs: "Hojii Barbaadi",
@@ -266,6 +268,13 @@ export const om: Messages = {
   toastJobUpdated: "Hojiin haaromfameera",
   toastJobPublished: "“{title}” maxxanfameera",
   toastDraftSaved: "Akka wixineetti olkaa'ameera",
+  bulkShiftsToggle: "Hojii tokko shiftii hedduuf maxxansi",
+  bulkShiftsHint: "Shiftiin tokkoon tokkoo tarreefta of danda'aa ta'a — mata-duree, kaffaltii fi baay'inni hojjettootaa walfakkaata.",
+  bulkAddShift: "Shiftii biraa dabali",
+  bulkRemoveShift: "Shiftii haqi",
+  bulkNeedTwoShifts: "Yeroo jalqabaa qaban shiftii lamaa ol galchi.",
+  toastBulkPublished: "Shiftii {n} “{title}” tiif maxxanfameera",
+  err_duplicate_shift: "Shiftiin tokkoon tokkoo yeroo jalqabaa addaa qabaachuu qaba.",
 
   reviewTitle: "@{username} madaali",
   reviewOverall: "Waliigala",

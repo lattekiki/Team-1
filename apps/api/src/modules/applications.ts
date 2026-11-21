@@ -85,6 +85,10 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
   const { rows } = await pool.query(
     `select a.id, a.status, a.message, a.proposed_pay, a.created_at,
             j.id as job_id, j.title as job_title, j.tier as job_tier, j.status as job_status,
+            j.workers_needed,
+            (select count(*) from pairings p2
+              where p2.job_id = j.id
+                and p2.status in ('pending_confirmation', 'confirmed', 'in_progress', 'completed'))::int as filled_slots,
             u.id as worker_id, u.username, u.identity_verified, u.high_trust_approved,
             w.experience_level, coalesce(w.area, '') as area,
             p.id as pairing_id,
@@ -124,7 +128,14 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
         area: r.area,
         skills: r.skills,
       },
-      job: { id: r.job_id, title: r.job_title, tier: r.job_tier, status: r.job_status },
+      job: {
+        id: r.job_id,
+        title: r.job_title,
+        tier: r.job_tier,
+        status: r.job_status,
+        workersNeeded: r.workers_needed,
+        filledSlots: r.filled_slots ?? 0,
+      },
     };
   });
 }

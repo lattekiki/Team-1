@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   coordsForArea,
+  jobBulkCreateSchema,
   jobCreateSchema,
   jobQuerySchema,
   jobUpdateSchema,
@@ -19,6 +20,9 @@ const JOB_SELECT = `
   select j.*, c.slug as category_slug, c.name as category_name,
          u.username as employer_username, ep.employer_type, ep.business_name,
          (select count(*) from applications a where a.job_id = j.id and a.status <> 'withdrawn')::int as application_count,
+         (select count(*) from pairings p
+           where p.job_id = j.id
+             and p.status in ('pending_confirmation', 'confirmed', 'in_progress', 'completed'))::int as filled_slots,
          ma.id as my_application_id, ma.status as my_application_status,
          exists(select 1 from job_favorites f where f.job_id = j.id and f.user_id = $1::uuid) as saved
   from jobs j
@@ -57,6 +61,7 @@ export function toJobSummary(r: JobRow, viewerId: string | null, trust: WorkerTr
     negotiable: r.negotiable,
     paymentTerms: r.payment_terms,
     workersNeeded: r.workers_needed,
+    filledSlots: r.filled_slots ?? 0,
     applicationDeadline: r.application_deadline,
     applicationCount: r.application_count,
     createdAt: r.created_at,
@@ -213,19 +218,37 @@ jobsRouter.get("/jobs/:id", async (req, res) => {
   res.json({ job: toJobSummary(row, viewerId, trust) });
 });
 
-jobsRouter.post("/jobs", requireAuth, async (req, res) => {
-  const me = currentUser(req);
-  const body = jobCreateSchema.parse(req.body);
-  const tier = await tierFor(pool, body.categoryId);
+async function insertJob(
+  db: Db,
+  employerId: string,
+  body: {
+    categoryId: number;
+    title: string;
+    description: string;
+    area: string;
+    landmark: string;
+    startsAt?: Date | null;
+    endsAt?: Date | null;
+    payType: string;
+    payMin?: number | null;
+    payMax?: number | null;
+    negotiable: boolean;
+    paymentTerms: string;
+    workersNeeded: number;
+    applicationDeadline?: Date | null;
+    publish: boolean;
+  },
+  tier: string,
+) {
   const coords = coordsForArea(body.area);
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `insert into jobs (employer_id, category_id, tier, title, description, area, landmark, lat, lng, starts_at, ends_at,
                        pay_type, pay_min, pay_max, negotiable, payment_terms, workers_needed, application_deadline,
                        status, published_at)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      returning id`,
     [
-      me.id,
+      employerId,
       body.categoryId,
       tier,
       body.title,
@@ -247,8 +270,50 @@ jobsRouter.post("/jobs", requireAuth, async (req, res) => {
       body.publish ? new Date() : null,
     ],
   );
-  const row = await getJobRow(pool, rows[0].id, me.id);
+  return rows[0].id as string;
+}
+
+jobsRouter.post("/jobs", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const body = jobCreateSchema.parse(req.body);
+  const tier = await tierFor(pool, body.categoryId);
+  const id = await insertJob(pool, me.id, { ...body, publish: body.publish }, tier);
+  const row = await getJobRow(pool, id, me.id);
   res.status(201).json({ job: toJobSummary(row, me.id, null) });
+});
+
+jobsRouter.post("/jobs/bulk", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const body = jobBulkCreateSchema.parse(req.body);
+  const starts = body.shifts.map((s) => s.startsAt.getTime());
+  if (new Set(starts).size !== starts.length) {
+    throw badRequest("Each shift needs a distinct start time", "duplicate_shift");
+  }
+  const tier = await tierFor(pool, body.categoryId);
+  const ids = await withTransaction(async (db) => {
+    const created: string[] = [];
+    for (const shift of body.shifts) {
+      const id = await insertJob(
+        db,
+        me.id,
+        {
+          ...body,
+          startsAt: shift.startsAt,
+          endsAt: shift.endsAt ?? null,
+          publish: body.publish,
+        },
+        tier,
+      );
+      created.push(id);
+    }
+    return created;
+  });
+  const jobs = [];
+  for (const id of ids) {
+    const row = await getJobRow(pool, id, me.id);
+    jobs.push(toJobSummary(row, me.id, null));
+  }
+  res.status(201).json({ jobs });
 });
 
 jobsRouter.patch("/jobs/:id", requireAuth, async (req, res) => {

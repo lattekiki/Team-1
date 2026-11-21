@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronRight, Clock, CreditCard, Lock, MapPin } from "lucide-react";
+import { CheckCircle2, ChevronRight, Clock, CreditCard, Lock, MapPin, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import type { JobSummary } from "@team1/shared";
 import { useAuth } from "../lib/auth.tsx";
@@ -120,6 +120,12 @@ export function JobCard({
             <div className="flex items-start gap-2 pt-0.5">
               <CreditCard className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-75" />
               <span className="text-[11px] leading-snug">{fmt.paymentTerms(job.paymentTerms)}</span>
+            </div>
+          )}
+          {(job.workersNeeded > 1 || job.filledSlots > 0) && (
+            <div className="flex items-center gap-2">
+              <Users className="w-3.5 h-3.5 shrink-0 opacity-75" />
+              <span>{t("slotsFilled", { filled: job.filledSlots, needed: job.workersNeeded })}</span>
             </div>
           )}
         </div>

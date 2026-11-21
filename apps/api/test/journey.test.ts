@@ -456,6 +456,86 @@ describe("hard rules", () => {
     await worker.agent.post("/api/jobs/00000000-0000-4000-8000-000000000099/favorite").expect(404);
   });
 
+  it("posts bulk shift jobs and fills multi-worker seats one at a time", async () => {
+    const employer = await signUp("bulk_shop");
+    await employer.agent.patch("/api/me").send({ activeMode: "employer" }).expect(200);
+    await employer.agent.put("/api/me/employer-profile").send({ employerType: "business", area: "Merkato" }).expect(200);
+
+    const startA = new Date(Date.now() + 2 * 86400000).toISOString();
+    const startB = new Date(Date.now() + 3 * 86400000).toISOString();
+    const bulk = await employer.agent
+      .post("/api/jobs/bulk")
+      .send({
+        categoryId: await categoryId("shop-help"),
+        title: "Weekend cashier shifts",
+        description: "Cover the till for one shift",
+        area: "Merkato",
+        payType: "daily",
+        payMin: 500,
+        workersNeeded: 2,
+        publish: true,
+        shifts: [
+          { startsAt: startA, endsAt: new Date(new Date(startA).getTime() + 8 * 3600000).toISOString() },
+          { startsAt: startB, endsAt: new Date(new Date(startB).getTime() + 8 * 3600000).toISOString() },
+        ],
+      })
+      .expect(201);
+    expect(bulk.body.jobs).toHaveLength(2);
+    expect(bulk.body.jobs[0].workersNeeded).toBe(2);
+    expect(bulk.body.jobs[0].filledSlots).toBe(0);
+    expect(new Set(bulk.body.jobs.map((j: { startsAt: string }) => j.startsAt)).size).toBe(2);
+
+    await employer.agent
+      .post("/api/jobs/bulk")
+      .send({
+        categoryId: await categoryId("shop-help"),
+        title: "Duplicate starts",
+        description: "Should fail",
+        area: "Merkato",
+        payType: "daily",
+        payMin: 400,
+        publish: true,
+        shifts: [{ startsAt: startA }, { startsAt: startA }],
+      })
+      .expect(400);
+
+    const jobId = bulk.body.jobs[0].id as string;
+    const w1 = await signUp("bulk_w1");
+    const w2 = await signUp("bulk_w2");
+    const w3 = await signUp("bulk_w3");
+    for (const w of [w1, w2, w3]) {
+      await w.agent.put("/api/me/worker-profile").send({ bio: "Available", area: "Merkato" }).expect(200);
+      await w.agent
+        .post(`/api/jobs/${jobId}/applications`)
+        .send({ message: "I can cover this cashier shift." })
+        .expect(201);
+    }
+
+    const apps = await employer.agent.get(`/api/jobs/${jobId}/applications`).expect(200);
+    expect(apps.body.applicants).toHaveLength(3);
+    expect(apps.body.applicants[0].job.workersNeeded).toBe(2);
+
+    const select = async (username: string) => {
+      const app = apps.body.applicants.find((a: { worker: { username: string } }) => a.worker.username === username);
+      return employer.agent.post(`/api/applications/${app.id}/select`).expect(200);
+    };
+    const s1 = await select("bulk_w1");
+    await w1.agent.post(`/api/pairings/${s1.body.pairingId}/accept`).expect(200);
+
+    let job = await employer.agent.get(`/api/jobs/${jobId}`).expect(200);
+    expect(job.body.job.filledSlots).toBe(1);
+    expect(job.body.job.status).toBe("published");
+
+    const s2 = await select("bulk_w2");
+    await w2.agent.post(`/api/pairings/${s2.body.pairingId}/accept`).expect(200);
+    job = await employer.agent.get(`/api/jobs/${jobId}`).expect(200);
+    expect(job.body.job.filledSlots).toBe(2);
+    expect(job.body.job.status).toBe("filled");
+
+    const leftover = apps.body.applicants.find((a: { worker: { username: string } }) => a.worker.username === "bulk_w3");
+    await employer.agent.post(`/api/applications/${leftover.id}/select`).expect(409);
+  });
+
   it("does not let employers apply to their own jobs", async () => {
     const employer = await signUp("self_applier");
     const job = await postJob(employer.agent, "errands", "Deliver documents");

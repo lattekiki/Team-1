@@ -1,4 +1,4 @@
-import { ShieldAlert } from "lucide-react";
+import { Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { JIMMA_AREAS, PAY_TYPES, type Category, type JobSummary, type PayType } from "@team1/shared";
 import { api } from "../lib/api.ts";
@@ -8,6 +8,8 @@ import { en } from "../lib/locales/en.ts";
 import { useToast } from "../lib/toast.tsx";
 import { useAction, useApi } from "../lib/useApi.ts";
 import { btn, ErrorBox, field, Modal } from "./ui.tsx";
+
+type ShiftRow = { startsAt: string; endsAt: string };
 
 const PAYMENT_TERMS = PAYMENT_TERM_KEYS.map((key) => en[key]);
 
@@ -57,30 +59,64 @@ export function PostJobModal({
   const toast = useToast();
   const { busy, run } = useAction();
   const [form, setForm] = useState<Form>(() => fromJob(job));
+  const [bulkShifts, setBulkShifts] = useState(false);
+  const [shifts, setShifts] = useState<ShiftRow[]>([
+    { startsAt: "", endsAt: "" },
+    { startsAt: "", endsAt: "" },
+  ]);
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const cats = categories.data?.categories ?? [];
   const selected = cats.find((c) => String(c.id) === form.categoryId);
   const termOptions = PAYMENT_TERMS.includes(form.paymentTerms) ? PAYMENT_TERMS : [...PAYMENT_TERMS, form.paymentTerms];
+  const creating = !job;
+
+  const baseBody = () => ({
+    title: form.title,
+    categoryId: Number(form.categoryId),
+    area: form.area,
+    landmark: form.landmark,
+    payType: form.payType,
+    payMin: form.payMin ? Number(form.payMin) : null,
+    payMax: form.payMax ? Number(form.payMax) : form.payMin ? Number(form.payMin) : null,
+    negotiable: form.negotiable,
+    paymentTerms: form.paymentTerms,
+    workersNeeded: Number(form.workersNeeded) || 1,
+    description: form.description,
+  });
 
   const submit = async (e: FormEvent, publish: boolean) => {
     e.preventDefault();
     setError(null);
+
+    if (creating && bulkShifts) {
+      const parsed = shifts
+        .map((s) => ({
+          startsAt: fromLocalInput(s.startsAt),
+          endsAt: fromLocalInput(s.endsAt),
+        }))
+        .filter((s) => s.startsAt);
+      if (parsed.length < 2) {
+        setError(t("bulkNeedTwoShifts"));
+        return;
+      }
+      const res = await run(
+        () => api<{ jobs: JobSummary[] }>("/jobs/bulk", { body: { ...baseBody(), publish, shifts: parsed } }),
+        setError,
+      );
+      if (res?.jobs?.length) {
+        toast(t("toastBulkPublished", { n: res.jobs.length, title: res.jobs[0]!.title }));
+        onSaved(res.jobs[0]!);
+        onClose();
+      }
+      return;
+    }
+
     const body = {
-      title: form.title,
-      categoryId: Number(form.categoryId),
-      area: form.area,
-      landmark: form.landmark,
+      ...baseBody(),
       startsAt: fromLocalInput(form.startsAt),
       endsAt: fromLocalInput(form.endsAt),
-      payType: form.payType,
-      payMin: form.payMin ? Number(form.payMin) : null,
-      payMax: form.payMax ? Number(form.payMax) : form.payMin ? Number(form.payMin) : null,
-      negotiable: form.negotiable,
-      paymentTerms: form.paymentTerms,
-      workersNeeded: Number(form.workersNeeded) || 1,
-      description: form.description,
       ...(job ? {} : { publish }),
     };
     const res = await run(
@@ -172,32 +208,95 @@ export function PostJobModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="starts" className={field.label}>
-              {t("postStarts")}
-            </label>
+        {creating && (
+          <label className="flex items-center gap-2 text-xs font-semibold text-zinc-700">
             <input
-              id="starts"
-              type="datetime-local"
-              value={form.startsAt}
-              onChange={(e) => set("startsAt", e.target.value)}
-              className={field.input}
+              type="checkbox"
+              checked={bulkShifts}
+              onChange={(e) => setBulkShifts(e.target.checked)}
             />
+            {t("bulkShiftsToggle")}
+          </label>
+        )}
+
+        {creating && bulkShifts ? (
+          <div className="space-y-3 p-3 rounded-2xl border border-zinc-200 bg-zinc-50">
+            <p className="text-[11px] text-zinc-500">{t("bulkShiftsHint")}</p>
+            {shifts.map((shift, i) => (
+              <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                <div>
+                  <label className={field.label}>{t("postStarts")}</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={shift.startsAt}
+                    onChange={(e) =>
+                      setShifts((rows) => rows.map((r, j) => (j === i ? { ...r, startsAt: e.target.value } : r)))
+                    }
+                    className={field.input}
+                  />
+                </div>
+                <div>
+                  <label className={field.label}>{t("postEnds")}</label>
+                  <input
+                    type="datetime-local"
+                    value={shift.endsAt}
+                    onChange={(e) =>
+                      setShifts((rows) => rows.map((r, j) => (j === i ? { ...r, endsAt: e.target.value } : r)))
+                    }
+                    className={field.input}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={shifts.length <= 2}
+                  onClick={() => setShifts((rows) => rows.filter((_, j) => j !== i))}
+                  className="p-2.5 rounded-xl text-zinc-500 hover:bg-zinc-200 disabled:opacity-40"
+                  aria-label={t("bulkRemoveShift")}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            {shifts.length < 14 && (
+              <button
+                type="button"
+                onClick={() => setShifts((rows) => [...rows, { startsAt: "", endsAt: "" }])}
+                className={btn.ghost}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {t("bulkAddShift")}
+              </button>
+            )}
           </div>
-          <div>
-            <label htmlFor="ends" className={field.label}>
-              {t("postEnds")}
-            </label>
-            <input
-              id="ends"
-              type="datetime-local"
-              value={form.endsAt}
-              onChange={(e) => set("endsAt", e.target.value)}
-              className={field.input}
-            />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="starts" className={field.label}>
+                {t("postStarts")}
+              </label>
+              <input
+                id="starts"
+                type="datetime-local"
+                value={form.startsAt}
+                onChange={(e) => set("startsAt", e.target.value)}
+                className={field.input}
+              />
+            </div>
+            <div>
+              <label htmlFor="ends" className={field.label}>
+                {t("postEnds")}
+              </label>
+              <input
+                id="ends"
+                type="datetime-local"
+                value={form.endsAt}
+                onChange={(e) => set("endsAt", e.target.value)}
+                className={field.input}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-3 gap-3">
           <div>

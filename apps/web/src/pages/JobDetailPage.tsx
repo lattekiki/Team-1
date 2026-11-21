@@ -23,11 +23,13 @@ export function ApplicantCard({ applicant, onChanged }: { applicant: Applicant; 
   const { busy, run } = useAction();
   const w = applicant.worker;
   const onError = (m: string) => toast(m, "error");
+  const canSelect = applicant.job.filledSlots < applicant.job.workersNeeded;
 
   const select = async () => {
     const res = await run(() => api<{ pairingId: string }>(`/applications/${applicant.id}/select`, { method: "POST" }), onError);
     if (res) {
       toast(t("toastSelected", { username: w.username }));
+      onChanged();
       navigate(`/pairings/${res.pairingId}`);
     }
   };
@@ -95,9 +97,14 @@ export function ApplicantCard({ applicant, onChanged }: { applicant: Applicant; 
                 <X className="w-3.5 h-3.5" />
                 {t("applicantReject")}
               </button>
-              <button onClick={select} disabled={busy} className={btn.primary}>
+              <button
+                onClick={select}
+                disabled={busy || !canSelect}
+                title={!canSelect ? t("slotsFull") : undefined}
+                className={btn.primary}
+              >
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                {t("applicantSelect")}
+                {canSelect ? t("applicantSelect") : t("slotsFull")}
               </button>
             </>
           )}
@@ -191,7 +198,9 @@ export function JobDetailPage() {
                 )}
                 <p className="flex items-center gap-2">
                   <Users className="w-3.5 h-3.5" />
-                  {tp("workersNeeded", j.workersNeeded)}
+                  {j.workersNeeded > 1 || j.filledSlots > 0
+                    ? t("slotsFilled", { filled: j.filledSlots, needed: j.workersNeeded })
+                    : tp("workersNeeded", j.workersNeeded)}
                 </p>
               </div>
             </div>
@@ -224,7 +233,11 @@ export function JobDetailPage() {
             {isOwner ? (
               <>
                 <p className="text-sm font-bold">{t("yourJobPost")}</p>
-                <p className="text-xs text-zinc-400">{tp("applicants", j.applicationCount)}</p>
+                <p className="text-xs text-zinc-400">
+                  {tp("applicants", j.applicationCount)}
+                  {(j.workersNeeded > 1 || j.filledSlots > 0) &&
+                    ` · ${t("slotsFilled", { filled: j.filledSlots, needed: j.workersNeeded })}`}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {j.status === "draft" && (
                     <button disabled={busy} onClick={() => action(`/jobs/${j.id}/publish`, t("toastPublished"))} className={btn.light}>

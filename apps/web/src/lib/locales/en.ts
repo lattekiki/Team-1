@@ -24,6 +24,8 @@ export const en = {
   applicants_other: "{n} applicants",
   workersNeeded_one: "{n} worker needed",
   workersNeeded_other: "{n} workers needed",
+  slotsFilled: "{filled} of {needed} seats filled",
+  slotsFull: "All seats filled",
 
   // Header, footer
   brandSub: "Jimma Flexible Work & Local Services",
@@ -274,6 +276,13 @@ export const en = {
   toastJobUpdated: "Job updated",
   toastJobPublished: "Published “{title}”",
   toastDraftSaved: "Saved as draft",
+  bulkShiftsToggle: "Post the same job for multiple shifts",
+  bulkShiftsHint: "Each shift becomes its own published listing with the same title, pay, and workers needed.",
+  bulkAddShift: "Add another shift",
+  bulkRemoveShift: "Remove shift",
+  bulkNeedTwoShifts: "Add at least two shifts with start times.",
+  toastBulkPublished: "Published {n} shifts for “{title}”",
+  err_duplicate_shift: "Each shift needs a different start time.",
 
   // Review, rebook, report modals
   reviewTitle: "Rate & review @{username}",
