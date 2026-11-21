@@ -3,10 +3,10 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { otpRequestSchema, otpVerifySchema, type Me } from "@team1/shared";
 import { pool, withTransaction } from "../db/pool.ts";
-import { env, isProd } from "../env.ts";
+import { env } from "../env.ts";
 import { createSession, currentUser, destroySession, requireAuth, SESSION_COOKIE, sha256 } from "../lib/auth.ts";
 import { AppError, badRequest, conflict } from "../lib/errors.ts";
-import { otpProvider } from "../lib/otp.ts";
+import { otpExposeDevCode, otpProvider } from "../lib/otp.ts";
 import { reputationFor } from "../lib/stats.ts";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
@@ -68,7 +68,12 @@ authRouter.post("/auth/otp/request", otpLimiter, async (req, res) => {
   ]);
   await otpProvider.send(phone, code);
   const existing = await pool.query("select 1 from users where phone = $1", [phone]);
-  res.json({ sent: true, isNewUser: existing.rowCount === 0, ...(isProd ? {} : { devCode: code }) });
+  res.json({
+    sent: true,
+    isNewUser: existing.rowCount === 0,
+    provider: otpProvider.name,
+    ...(otpExposeDevCode ? { devCode: code } : {}),
+  });
 });
 
 authRouter.post("/auth/otp/verify", otpLimiter, async (req, res) => {

@@ -13,8 +13,15 @@ import { currentUser, requireAuth, type AuthUser } from "../lib/auth.ts";
 import { assertNotBlocked } from "../lib/blocks.ts";
 import { idParam } from "../lib/http.ts";
 import { checkEligibility, notEligible } from "../lib/eligibility.ts";
-import { conflict, forbidden, notFound } from "../lib/errors.ts";
+import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
+import {
+  initialPaymentStatus,
+  paymentProvider,
+  paymentsEnabled,
+  recordPaymentEvent,
+  type PaymentStatus,
+} from "../lib/payments.ts";
 
 const PAIRING_SELECT = `
   select p.*, j.title, j.tier, j.area, j.landmark, j.starts_at, j.ends_at, j.pay_type, j.pay_min, j.pay_max,
@@ -51,6 +58,9 @@ function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
     id: r.id,
     status: r.status,
     paymentStatus: r.payment_status,
+    paymentAmountEtb: r.payment_amount_etb != null ? Number(r.payment_amount_etb) : null,
+    paymentHeldAt: r.payment_held_at ?? null,
+    paymentPaidAt: r.payment_paid_at ?? null,
     myRole,
     job: {
       id: r.job_id,
@@ -259,6 +269,24 @@ pairingsRouter.post("/pairings/:id/cancel", requireAuth, async (req, res) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id);
     assertStatus(p, ["pending_confirmation", "confirmed"], "cancel");
+    if (p.payment_status === "held") {
+      const amount = Number(p.payment_amount_etb ?? p.proposed_pay ?? p.pay_max ?? p.pay_min ?? 0);
+      await paymentProvider.refund({ pairingId: p.id, amountEtb: amount, externalId: p.payment_external_id });
+      await db.query(
+        `update pairings set payment_status = 'refunded', payment_refunded_at = now(), updated_at = now()
+         where id = $1`,
+        [p.id],
+      );
+      await recordPaymentEvent(db, {
+        pairingId: p.id,
+        action: "refund",
+        amountEtb: amount,
+        externalId: p.payment_external_id,
+        actorId: me.id,
+        note: "Refunded on pairing cancel",
+      });
+      await notify(db, otherParty(p, me.id), "payment_refunded", { pairingId: p.id, title: p.title });
+    }
     await db.query(
       `update pairings set status = 'cancelled', cancelled_at = now(), cancelled_by = $2, updated_at = now()
        where id = $1`,
@@ -268,6 +296,153 @@ pairingsRouter.post("/pairings/:id/cancel", requireAuth, async (req, res) => {
       p.job_id,
     ]);
     await notify(db, otherParty(p, me.id), "pairing_cancelled", { pairingId: p.id, title: p.title });
+  });
+  await respond(res, idParam(req), me);
+});
+
+function assertPaymentsOn() {
+  if (!paymentsEnabled) throw badRequest("Platform payments are disabled", "payments_disabled");
+}
+
+function agreedAmount(p: Row): number {
+  const n = Number(p.payment_amount_etb ?? p.proposed_pay ?? p.pay_max ?? p.pay_min ?? 0);
+  if (!(n > 0)) throw badRequest("Agree a pay amount before recording payment", "payment_amount_required");
+  return n;
+}
+
+pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) => {
+  assertPaymentsOn();
+  const me = currentUser(req);
+  await withTransaction(async (db) => {
+    const p = await loadPairing(db, idParam(req), me, true);
+    assertParty(p, me.id, "employer");
+    assertStatus(p, ["confirmed", "in_progress"], "hold payment");
+    if (p.payment_status !== "pending" && p.payment_status !== "failed") {
+      throw conflict(`Payment is already ${p.payment_status}`, "payment_wrong_status");
+    }
+    const amount = agreedAmount(p);
+    const { externalId } = await paymentProvider.hold({ pairingId: p.id, amountEtb: amount });
+    await db.query(
+      `update pairings
+       set payment_status = 'held', payment_amount_etb = $2, payment_external_id = $3,
+           payment_held_at = now(), updated_at = now()
+       where id = $1`,
+      [p.id, amount, externalId],
+    );
+    await recordPaymentEvent(db, {
+      pairingId: p.id,
+      action: "hold",
+      amountEtb: amount,
+      externalId,
+      actorId: me.id,
+    });
+    await notify(db, p.worker_id, "payment_held", {
+      pairingId: p.id,
+      title: p.title,
+      amount,
+      provider: paymentProvider.name,
+    });
+  });
+  await respond(res, idParam(req), me);
+});
+
+pairingsRouter.post("/pairings/:id/payment/release", requireAuth, async (req, res) => {
+  assertPaymentsOn();
+  const me = currentUser(req);
+  await withTransaction(async (db) => {
+    const p = await loadPairing(db, idParam(req), me, true);
+    assertParty(p, me.id, "employer");
+    if (p.payment_status !== "held") throw conflict("Nothing is held to release", "payment_wrong_status");
+    if (!["in_progress", "completed"].includes(p.status)) {
+      throw conflict("Release payment after work is underway or completed", "pairing_wrong_status");
+    }
+    const amount = agreedAmount(p);
+    await paymentProvider.release({ pairingId: p.id, amountEtb: amount, externalId: p.payment_external_id });
+    await db.query(
+      `update pairings
+       set payment_status = 'paid', payment_paid_at = now(), updated_at = now()
+       where id = $1`,
+      [p.id],
+    );
+    await recordPaymentEvent(db, {
+      pairingId: p.id,
+      action: "release",
+      amountEtb: amount,
+      externalId: p.payment_external_id,
+      actorId: me.id,
+    });
+    await notify(db, p.worker_id, "payment_released", {
+      pairingId: p.id,
+      title: p.title,
+      amount,
+      provider: paymentProvider.name,
+    });
+  });
+  await respond(res, idParam(req), me);
+});
+
+pairingsRouter.post("/pairings/:id/payment/mark-paid", requireAuth, async (req, res) => {
+  assertPaymentsOn();
+  const me = currentUser(req);
+  await withTransaction(async (db) => {
+    const p = await loadPairing(db, idParam(req), me, true);
+    assertParty(p, me.id);
+    if (!["pending", "held", "failed"].includes(p.payment_status as PaymentStatus)) {
+      throw conflict(`Payment is already ${p.payment_status}`, "payment_wrong_status");
+    }
+    if (!["confirmed", "in_progress", "completed"].includes(p.status)) {
+      throw conflict("Record payment once the pairing is confirmed", "pairing_wrong_status");
+    }
+    const amount = agreedAmount(p);
+    const { externalId } = await paymentProvider.markPaid({ pairingId: p.id, amountEtb: amount });
+    await db.query(
+      `update pairings
+       set payment_status = 'paid', payment_amount_etb = $2,
+           payment_external_id = coalesce($3, payment_external_id),
+           payment_paid_at = now(), updated_at = now()
+       where id = $1`,
+      [p.id, amount, externalId],
+    );
+    await recordPaymentEvent(db, {
+      pairingId: p.id,
+      action: "mark_paid",
+      amountEtb: amount,
+      externalId,
+      actorId: me.id,
+    });
+    await notify(db, otherParty(p, me.id), "payment_marked_paid", {
+      pairingId: p.id,
+      title: p.title,
+      amount,
+      by: me.username,
+    });
+  });
+  await respond(res, idParam(req), me);
+});
+
+pairingsRouter.post("/pairings/:id/payment/refund", requireAuth, async (req, res) => {
+  assertPaymentsOn();
+  const me = currentUser(req);
+  await withTransaction(async (db) => {
+    const p = await loadPairing(db, idParam(req), me, true);
+    assertParty(p, me.id, "employer");
+    if (p.payment_status !== "held") throw conflict("Only held payments can be refunded", "payment_wrong_status");
+    const amount = agreedAmount(p);
+    await paymentProvider.refund({ pairingId: p.id, amountEtb: amount, externalId: p.payment_external_id });
+    await db.query(
+      `update pairings
+       set payment_status = 'refunded', payment_refunded_at = now(), updated_at = now()
+       where id = $1`,
+      [p.id],
+    );
+    await recordPaymentEvent(db, {
+      pairingId: p.id,
+      action: "refund",
+      amountEtb: amount,
+      externalId: p.payment_external_id,
+      actorId: me.id,
+    });
+    await notify(db, p.worker_id, "payment_refunded", { pairingId: p.id, title: p.title, amount });
   });
   await respond(res, idParam(req), me);
 });
@@ -432,12 +607,16 @@ pairingsRouter.post("/rebookings/:id/accept", requireAuth, async (req, res) => {
     const eligibility = await checkEligibility(db, me.id, { tier: rb.tier, categoryId: rb.category_id });
     if (!eligibility.eligible) throw notEligible(eligibility);
 
+    const payStatus = initialPaymentStatus();
     const pairing = await db.query(
-      `insert into pairings (job_id, employer_id, worker_id, status, confirmed_at)
-       values ($1, $2, $3, 'confirmed', now()) returning id`,
-      [rb.new_job_id, rb.employer_id, me.id],
+      `insert into pairings (job_id, employer_id, worker_id, status, confirmed_at, payment_status)
+       values ($1, $2, $3, 'confirmed', now(), $4) returning id`,
+      [rb.new_job_id, rb.employer_id, me.id, payStatus],
     );
     const id = pairing.rows[0].id as string;
+    if (payStatus !== "not_required") {
+      await recordPaymentEvent(db, { pairingId: id, action: "create", amountEtb: null, actorId: me.id });
+    }
     await db.query("update jobs set status = 'filled', updated_at = now() where id = $1", [rb.new_job_id]);
     await db.query("update rebookings set status = 'accepted', new_pairing_id = $2, updated_at = now() where id = $1", [
       rb.id,

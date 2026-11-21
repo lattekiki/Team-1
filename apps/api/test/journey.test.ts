@@ -536,6 +536,56 @@ describe("hard rules", () => {
     await employer.agent.post(`/api/applications/${leftover.id}/select`).expect(409);
   });
 
+  it("tracks mock escrow hold, release, and refund on a pairing", async () => {
+    const cfg = await request(app).get("/api/payments/config").expect(200);
+    expect(cfg.body).toMatchObject({ mode: "mock_escrow", enabled: true, escrow: true });
+
+    const employer = await signUp("pay_boss");
+    const worker = await signUp("pay_hand");
+    await employer.agent.patch("/api/me").send({ activeMode: "employer" }).expect(200);
+    await employer.agent.put("/api/me/employer-profile").send({ employerType: "business", area: "Merkato" }).expect(200);
+    await worker.agent.put("/api/me/worker-profile").send({ bio: "Cashier", area: "Merkato" }).expect(200);
+
+    const job = await postJob(employer.agent, "shop-help", "Paid till shift");
+    await worker.agent
+      .post(`/api/jobs/${job}/applications`)
+      .send({ message: "I can cover the till today." })
+      .expect(201);
+    const apps = await employer.agent.get(`/api/jobs/${job}/applications`).expect(200);
+    const sel = await employer.agent.post(`/api/applications/${apps.body.applicants[0].id}/select`).expect(200);
+    const pairingId = sel.body.pairingId as string;
+
+    let pairing = await employer.agent.get(`/api/pairings/${pairingId}`).expect(200);
+    expect(pairing.body.pairing.paymentStatus).toBe("pending");
+
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(409); // still pending_confirmation
+    await worker.agent.post(`/api/pairings/${pairingId}/accept`).expect(200);
+
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(200);
+    pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
+    expect(pairing.body.pairing.paymentStatus).toBe("held");
+    expect(pairing.body.pairing.paymentAmountEtb).toBe(650);
+
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(409); // not started
+    await employer.agent.post(`/api/pairings/${pairingId}/start`).expect(200);
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(200);
+    pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
+    expect(pairing.body.pairing.paymentStatus).toBe("paid");
+
+    const job2 = await postJob(employer.agent, "shop-help", "Refundable shift");
+    await worker.agent
+      .post(`/api/jobs/${job2}/applications`)
+      .send({ message: "I can cover this other shift too." })
+      .expect(201);
+    const apps2 = await employer.agent.get(`/api/jobs/${job2}/applications`).expect(200);
+    const sel2 = await employer.agent.post(`/api/applications/${apps2.body.applicants[0].id}/select`).expect(200);
+    const p2 = sel2.body.pairingId as string;
+    await worker.agent.post(`/api/pairings/${p2}/accept`).expect(200);
+    await employer.agent.post(`/api/pairings/${p2}/payment/hold`).expect(200);
+    await employer.agent.post(`/api/pairings/${p2}/payment/refund`).expect(200);
+    expect((await employer.agent.get(`/api/pairings/${p2}`).expect(200)).body.pairing.paymentStatus).toBe("refunded");
+  });
+
   it("does not let employers apply to their own jobs", async () => {
     const employer = await signUp("self_applier");
     const job = await postJob(employer.agent, "errands", "Deliver documents");

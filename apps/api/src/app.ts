@@ -11,6 +11,8 @@ import { pairingsRouter } from "./modules/pairings.ts";
 import { profilesRouter } from "./modules/profiles.ts";
 import { safetyRouter } from "./modules/safety.ts";
 import { ticketsRouter } from "./modules/tickets.ts";
+import { paymentsConfig } from "./lib/payments.ts";
+import { otpProvider } from "./lib/otp.ts";
 
 export function createApp() {
   const app = express();
@@ -34,7 +36,16 @@ export function createApp() {
     } catch {
       db = "unreachable";
     }
-    res.status(db === "ok" ? 200 : 503).json({ status: db === "ok" ? "ok" : "degraded", db });
+    res.status(db === "ok" ? 200 : 503).json({
+      status: db === "ok" ? "ok" : "degraded",
+      db,
+      otpProvider: otpProvider.name,
+      payments: paymentsConfig(),
+    });
+  });
+
+  api.get("/payments/config", (_req, res) => {
+    res.json(paymentsConfig());
   });
 
   api.use(loadUser);

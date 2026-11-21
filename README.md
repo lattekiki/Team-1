@@ -27,8 +27,12 @@ Open http://localhost:5173.
 
 ## Sign-in during development
 
-SMS is not wired up yet. Request a code with any Ethiopian mobile number; outside production the sign-in
-page shows the 6-digit code (it is also printed in the API terminal). A new number asks for a username.
+Default `OTP_PROVIDER=console` logs the code and returns it as `devCode` for the login UI. Set
+`OTP_PROVIDER=africastalking` or `twilio` (plus API keys in `apps/api/.env`) to send real SMS;
+`devCode` is then withheld unless `OTP_EXPOSE_DEV_CODE=true`.
+
+Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow` (simulated hold/release — no real money).
+Use `off` to settle only outside the app, or `manual` to record cash/bank payments without a hold step.
 
 | Demo account | Phone | Role |
 |---|---|---|

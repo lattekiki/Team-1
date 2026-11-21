@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Lock, MapPin, Phone, RefreshCw, Star, Unlock } from "lucide-react";
+import { Banknote, CheckCircle2, Clock, Lock, MapPin, Phone, RefreshCw, Star, Unlock } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import type { Pairing } from "@team1/shared";
@@ -8,6 +8,13 @@ import { api } from "../lib/api.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { useToast } from "../lib/toast.tsx";
 import { useAction, useApi } from "../lib/useApi.ts";
+
+type PaymentsConfig = {
+  mode: "off" | "manual" | "mock_escrow";
+  enabled: boolean;
+  escrow: boolean;
+  disclaimer: string;
+};
 
 const STEPS = ["step_selected", "step_confirmed", "step_started", "step_completed", "step_reviewed"] as const;
 
@@ -24,6 +31,7 @@ export function PairingPage() {
   const [reviewing, setReviewing] = useState(false);
   const [rebooking, setRebooking] = useState(false);
   const res = useApi<{ pairing: Pairing }>(`/pairings/${id}`);
+  const payCfg = useApi<PaymentsConfig>("/payments/config");
 
   if (res.loading && !res.data) return <Spinner />;
   if (res.error || !res.data) {
@@ -152,6 +160,69 @@ export function PairingPage() {
                   {p.theirReview.body && <p className="text-sm text-zinc-600 mt-1">{p.theirReview.body}</p>}
                 </div>
               )}
+            </div>
+          )}
+
+          {payCfg.data?.enabled && p.paymentStatus !== "not_required" && (
+            <div className="p-6 rounded-3xl border border-zinc-200 bg-white space-y-3 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-bold text-zinc-900">
+                  <Banknote className="w-4 h-4" />
+                  {t("paymentTitle")}
+                </div>
+                <StatusPill tone={p.paymentStatus === "paid" ? "good" : p.paymentStatus === "refunded" ? "bad" : "warn"}>
+                  {fmt.paymentStatus(p.paymentStatus)}
+                </StatusPill>
+              </div>
+              <p className="text-xs text-zinc-500">{payCfg.data.disclaimer}</p>
+              {p.agreedPay != null && (
+                <p className="text-sm font-semibold">
+                  {t("paymentAmount", { amount: p.agreedPay.toLocaleString("en-US") })}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {!isWorker &&
+                  ["pending", "failed"].includes(p.paymentStatus) &&
+                  ["confirmed", "in_progress"].includes(p.status) && (
+                    <button
+                      disabled={busy}
+                      onClick={() => act("payment/hold", t("toastPaymentHeld"))}
+                      className={btn.primary}
+                    >
+                      {t("paymentHold")}
+                    </button>
+                  )}
+                {!isWorker &&
+                  p.paymentStatus === "held" &&
+                  ["in_progress", "completed"].includes(p.status) && (
+                    <button
+                      disabled={busy}
+                      onClick={() => act("payment/release", t("toastPaymentReleased"))}
+                      className={btn.primary}
+                    >
+                      {t("paymentRelease")}
+                    </button>
+                  )}
+                {!isWorker && p.paymentStatus === "held" && (
+                  <button
+                    disabled={busy}
+                    onClick={() => act("payment/refund", t("toastPaymentRefunded"))}
+                    className={btn.ghost}
+                  >
+                    {t("paymentRefund")}
+                  </button>
+                )}
+                {["pending", "held", "failed"].includes(p.paymentStatus) &&
+                  ["confirmed", "in_progress", "completed"].includes(p.status) && (
+                    <button
+                      disabled={busy}
+                      onClick={() => act("payment/mark-paid", t("toastPaymentMarkedPaid"))}
+                      className={btn.light}
+                    >
+                      {t("paymentMarkPaid")}
+                    </button>
+                  )}
+              </div>
             </div>
           )}
         </div>

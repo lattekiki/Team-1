@@ -24,6 +24,8 @@ export const PAIRING_STATUSES = [
   "disputed",
 ] as const;
 export const CONTACT_VISIBLE_PAIRING_STATUSES = ["confirmed", "in_progress", "completed", "disputed"] as const;
+export const PAYMENT_STATUSES = ["not_required", "pending", "held", "paid", "refunded", "failed"] as const;
+export const PAYMENTS_MODES = ["off", "manual", "mock_escrow"] as const;
 
 export const JIMMA_AREAS = [
   { id: "Kochi", am: "ኮቺ" },
@@ -63,6 +65,8 @@ export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 export type JobStatus = (typeof JOB_STATUSES)[number];
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 export type PairingStatus = (typeof PAIRING_STATUSES)[number];
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type PaymentsMode = (typeof PAYMENTS_MODES)[number];
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
@@ -351,7 +355,10 @@ export type MyApplication = {
 export type Pairing = {
   id: string;
   status: PairingStatus;
-  paymentStatus: "not_required" | "pending" | "paid" | "refunded";
+  paymentStatus: PaymentStatus;
+  paymentAmountEtb: number | null;
+  paymentHeldAt: string | null;
+  paymentPaidAt: string | null;
   myRole: "worker" | "employer";
   job: Pick<
     JobSummary,

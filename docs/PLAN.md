@@ -37,12 +37,12 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - Block user: either side can block; blocked pairs are hidden from job browse/applicant lists and cannot apply, select, or rebook each other; pending applications between them are withdrawn/rejected; unblock from the public profile or the blocked list on `/profile`
 - Saved jobs (favorites): bookmark on job cards and job detail; list under worker dashboard (`GET /me/favorites`)
 
-### Stubbed (interface exists, no real provider)
-- **OTP/SMS**: `OtpProvider` interface, `ConsoleOtpProvider` implementation
-- **Payments**: pairing has `payment_status` (`not_required` for MVP). No money moves; SRS §12 forbids assuming escrow before legal review
+### Stubbed / pluggable providers
+- **OTP/SMS**: `OtpProvider` with `console` (default), `africastalking`, or `twilio` via `OTP_PROVIDER`. Live SMS never returns `devCode` unless `OTP_EXPOSE_DEV_CODE=true`.
+- **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow`. Manual/mock track `pending → held → paid|refunded` and write `payment_events`; **no licensed money rail yet** (SRS §12 — pick Chapa/Telebirr/etc. after legal review).
 
 ### Deferred (Phase 2+)
-Real SMS, payment provider, cloud object storage, interactive maps, all AI features, push/SMS notifications.
+Licensed payment/escrow rail, cloud object storage, interactive maps, all AI features, push/SMS notifications.
 
 ### Added after MVP journey
 - **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
@@ -51,6 +51,8 @@ Real SMS, payment provider, cloud object storage, interactive maps, all AI featu
 - **Distance browse**: `near` + `radiusKm` using Jimma neighborhood centers (no map provider).
 - **Verification documents**: local disk upload (JPEG/PNG/WebP/PDF, ≤5 MB, ≤3 files) for pending requests; staff can open them from admin.
 - **Business / bulk jobs**: `POST /jobs/bulk` posts the same template once per shift (2–14); job cards and detail show `filledSlots` / `workersNeeded`; select is blocked when seats are full.
+- **SMS/OTP providers**: Africa's Talking + Twilio adapters; console for local/test.
+- **Payment tracking / mock escrow**: hold, release, mark-paid, refund on pairings; pairing page UI + notifications.
 
 ## 3. Repo layout
 
@@ -123,7 +125,8 @@ docs/PLAN.md
 | catalog | `GET /categories`, `GET /skills`, `GET /stats` (real counts for the home page) |
 | jobs | `GET /jobs` (filters: `q`, `category`, `tier`, `area`, `payType`, `minPay`, `when`, `near`+`radiusKm`, `eligibleOnly`), `GET /jobs/:id`, `POST /jobs`, `POST /jobs/bulk` (multi-shift), `PATCH /jobs/:id`, `POST /jobs/:id/publish`, `POST /jobs/:id/cancel`, `GET /me/jobs` |
 | applications | `POST /jobs/:id/applications`, `GET /jobs/:id/applications` (owner), `GET /me/applicants` (all my jobs), `POST /applications/:id/withdraw`, `POST /applications/:id/select`, `POST /applications/:id/reject`, `GET /me/applications` |
-| pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel` |
+| pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel`, `POST /pairings/:id/payment/{hold,release,mark-paid,refund}` |
+| payments | `GET /payments/config` (mode + disclaimer) |
 | reviews | `POST /pairings/:id/reviews` (public reviews are part of `GET /users/:username`) |
 | rebookings | `POST /pairings/:id/rebook`, `GET /me/rebookings`, `POST /rebookings/:id/accept`, `POST /rebookings/:id/decline` |
 | reports | `POST /reports` |

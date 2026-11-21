@@ -7,6 +7,7 @@ import { assertNotBlocked, notBlockedSql } from "../lib/blocks.ts";
 import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
+import { initialPaymentStatus, recordPaymentEvent } from "../lib/payments.ts";
 import { reputationFor } from "../lib/stats.ts";
 import { expireStaleJobs } from "./jobs.ts";
 
@@ -216,12 +217,16 @@ applicationsRouter.post("/applications/:id/select", requireAuth, async (req, res
     }
 
     await db.query("update applications set status = 'selected', updated_at = now() where id = $1", [app.id]);
+    const payStatus = initialPaymentStatus();
     const pairing = await db.query(
-      `insert into pairings (job_id, employer_id, worker_id, application_id)
-       values ($1, $2, $3, $4) returning id`,
-      [app.job_id, me.id, app.worker_id, app.id],
+      `insert into pairings (job_id, employer_id, worker_id, application_id, payment_status)
+       values ($1, $2, $3, $4, $5) returning id`,
+      [app.job_id, me.id, app.worker_id, app.id, payStatus],
     );
     const id = pairing.rows[0].id as string;
+    if (payStatus !== "not_required") {
+      await recordPaymentEvent(db, { pairingId: id, action: "create", amountEtb: null, actorId: me.id });
+    }
     await notify(db, app.worker_id, "selected", { jobId: app.job_id, title: app.job_title, pairingId: id });
     return id;
   });
