@@ -44,3 +44,20 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   }
   return data as T;
 }
+
+/** Multipart upload; do not set Content-Type — the browser adds the boundary. */
+export async function apiForm<T>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, { method: "POST", credentials: "include", body: form });
+  } catch {
+    throw new ApiRequestError(0, "network", localizeError("network", undefined, undefined));
+  }
+  const data = await res.json().catch(() => undefined);
+  if (!res.ok) {
+    const err = (data as ApiError | undefined)?.error;
+    const code = err?.code ?? "internal";
+    throw new ApiRequestError(res.status, code, localizeError(code, err?.message, err?.details), err?.details);
+  }
+  return data as T;
+}

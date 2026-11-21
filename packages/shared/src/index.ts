@@ -420,6 +420,14 @@ export type PublicProfile = {
   reviews: { overall: number; body: string; reviewer: string; createdAt: string }[];
 };
 
+export type VerificationDocument = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+};
+
 export type VerificationRecord = {
   id: string;
   kind: VerificationKind;
@@ -428,6 +436,7 @@ export type VerificationRecord = {
   reviewNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  documents: VerificationDocument[];
 };
 
 export type PublicStats = { workers: number; employers: number; openJobs: number; completedJobs: number };

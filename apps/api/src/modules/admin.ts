@@ -179,6 +179,19 @@ adminRouter.get("/admin/verification", staff, async (req, res) => {
     pool,
     rows.map((r) => r.user_id),
   );
+  const docs =
+    rows.length === 0
+      ? { rows: [] as Record<string, any>[] }
+      : await pool.query(
+          `select * from verification_documents where verification_id = any($1::uuid[]) order by created_at`,
+          [rows.map((r) => r.id)],
+        );
+  const byRecord = new Map<string, typeof docs.rows>();
+  for (const d of docs.rows) {
+    const list = byRecord.get(d.verification_id) ?? [];
+    list.push(d);
+    byRecord.set(d.verification_id, list);
+  }
   res.json({
     records: rows.map((r) => ({
       id: r.id,
@@ -192,6 +205,13 @@ adminRouter.get("/admin/verification", staff, async (req, res) => {
       rating: rep.get(r.user_id)?.rating ?? null,
       completedJobs: rep.get(r.user_id)?.completedJobs ?? 0,
       createdAt: r.created_at,
+      documents: (byRecord.get(r.id) ?? []).map((d) => ({
+        id: d.id,
+        originalName: d.original_name,
+        mimeType: d.mime_type,
+        sizeBytes: d.size_bytes,
+        createdAt: d.created_at,
+      })),
     })),
   });
 });

@@ -180,6 +180,30 @@ describe("Definition of Done journey (SRS section 35)", () => {
 });
 
 describe("hard rules", () => {
+  it("lets a user attach verification documents for staff to open", async () => {
+    const worker = await signUp("docs_worker");
+    const admin = await signUp("docs_admin");
+    await pool.query("update users set role = 'admin' where id = $1", [admin.id]);
+    const created = await worker.agent
+      .post("/api/verification")
+      .send({ kind: "identity", note: "Kebele ID photo attached for review." })
+      .expect(201);
+    const id = created.body.record.id as string;
+    await worker.agent
+      .post(`/api/verification/${id}/documents`)
+      .attach("file", Buffer.from("%PDF-1.4 fake id scan"), "kebele-id.pdf")
+      .expect(201);
+    const mine = await worker.agent.get("/api/me/verification").expect(200);
+    expect(mine.body.records[0].documents).toHaveLength(1);
+    const docId = mine.body.records[0].documents[0].id as string;
+    const file = await admin.agent.get(`/api/verification/${id}/documents/${docId}/file`).expect(200);
+    expect(file.headers["content-type"]).toMatch(/pdf/);
+    await worker.agent
+      .post(`/api/verification/${id}/documents`)
+      .attach("file", Buffer.from("not-an-image"), "notes.txt")
+      .expect(400);
+  });
+
   it("gates VIP jobs on identity verification plus high-trust approval, in that order", async () => {
     const employer = await signUp("vip_family");
     const worker = await signUp("vip_worker");

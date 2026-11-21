@@ -17,7 +17,7 @@ import {
   type VerificationRecord,
 } from "@team1/shared";
 import { btn, container, EmptyState, ErrorBox, field, SectionTitle, Spinner, StatusPill } from "../components/ui.tsx";
-import { api } from "../lib/api.ts";
+import { api, apiForm } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useToast } from "../lib/toast.tsx";
@@ -355,6 +355,7 @@ function VerificationSection({ user, mode }: { user: Me; mode: Mode }) {
   const records = useApi<{ records: VerificationRecord[] }>("/me/verification");
   const [kind, setKind] = useState<VerificationKind | null>(null);
   const [note, setNote] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const kinds = VERIFICATION_KINDS[mode];
   const list = (records.data?.records ?? []).filter((r) => kinds.includes(r.kind));
@@ -368,14 +369,42 @@ function VerificationSection({ user, mode }: { user: Me; mode: Mode }) {
   const desc = (k: VerificationKind) =>
     k === "identity" && mode === "employer" ? t("verif_identity_employer_desc") : t(`verif_${k}_desc`);
 
+  const uploadFiles = async (verificationId: string, toUpload: File[]) => {
+    for (const file of toUpload.slice(0, 3)) {
+      const form = new FormData();
+      form.append("file", file);
+      await apiForm(`/verification/${verificationId}/documents`, form);
+    }
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!activeKind) return;
     setError(null);
-    if (await run(() => api("/verification", { body: { kind: activeKind, note } }), setError)) {
+    const ok = await run(async () => {
+      const created = await api<{ record: VerificationRecord }>("/verification", {
+        body: { kind: activeKind, note },
+      });
+      if (files.length) await uploadFiles(created.record.id, files);
+      return created;
+    }, setError);
+    if (ok) {
       toast(t("toastVerifSent"));
       setKind(null);
       setNote("");
+      setFiles([]);
+      records.reload();
+    }
+  };
+
+  const addDocs = async (recordId: string, selected: FileList | null) => {
+    if (!selected?.length) return;
+    const ok = await run(
+      () => uploadFiles(recordId, [...selected]),
+      (m) => toast(m, "error"),
+    );
+    if (ok) {
+      toast(t("toastVerifDocs"));
       records.reload();
     }
   };
@@ -425,13 +454,34 @@ function VerificationSection({ user, mode }: { user: Me; mode: Mode }) {
             placeholder={t(`verif_${activeKind}_placeholder`)}
             className={field.textarea}
           />
-          <p className="text-[11px] text-zinc-500">{t("verifNoIds")}</p>
+          <label htmlFor="v-files" className={field.label}>
+            {t("verifDocsLabel")}
+          </label>
+          <input
+            id="v-files"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            multiple
+            onChange={(e) => setFiles([...(e.target.files ?? [])].slice(0, 3))}
+            className="block w-full text-xs text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white"
+          />
+          {files.length > 0 && (
+            <p className="text-[11px] text-zinc-500">{t("verifDocsSelected", { n: files.length })}</p>
+          )}
+          <p className="text-[11px] text-zinc-500">{t("verifDocsHint")}</p>
           {error && <ErrorBox message={error} />}
           <div className="flex gap-2">
             <button type="submit" disabled={busy} className={btn.primary}>
               {t("sendRequest")}
             </button>
-            <button type="button" onClick={() => setKind(null)} className={btn.ghost}>
+            <button
+              type="button"
+              onClick={() => {
+                setKind(null);
+                setFiles([]);
+              }}
+              className={btn.ghost}
+            >
               {t("cancel")}
             </button>
           </div>
@@ -441,14 +491,44 @@ function VerificationSection({ user, mode }: { user: Me; mode: Mode }) {
       {list.length > 0 && (
         <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-2xl">
           {list.map((r) => (
-            <li key={r.id} className="p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span>
-                <strong>{t(`verif_${r.kind}_title`)}</strong> • {t("requestedOn", { date: fmt.date(r.createdAt) })}
-                {r.reviewNote && <span className="text-zinc-500"> • “{r.reviewNote}”</span>}
-              </span>
-              <StatusPill tone={r.status === "approved" ? "good" : r.status === "rejected" ? "bad" : "warn"}>
-                {fmt.verifStatus(r.status)}
-              </StatusPill>
+            <li key={r.id} className="p-3 space-y-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  <strong>{t(`verif_${r.kind}_title`)}</strong> • {t("requestedOn", { date: fmt.date(r.createdAt) })}
+                  {r.reviewNote && <span className="text-zinc-500"> • “{r.reviewNote}”</span>}
+                </span>
+                <StatusPill tone={r.status === "approved" ? "good" : r.status === "rejected" ? "bad" : "warn"}>
+                  {fmt.verifStatus(r.status)}
+                </StatusPill>
+              </div>
+              {r.documents.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {r.documents.map((d) => (
+                    <li key={d.id}>
+                      <a
+                        href={`/api/verification/${r.id}/documents/${d.id}/file`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline font-semibold text-zinc-700 hover:text-zinc-900"
+                      >
+                        {d.originalName}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {r.status === "pending" && r.documents.length < 3 && (
+                <label className="inline-flex items-center gap-2 text-[11px] font-bold text-zinc-600 cursor-pointer">
+                  <span className="underline">{t("verifAddDocs")}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addDocs(r.id, e.target.files)}
+                  />
+                </label>
+              )}
             </li>
           ))}
         </ul>

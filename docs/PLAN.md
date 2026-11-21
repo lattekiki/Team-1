@@ -40,16 +40,16 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 ### Stubbed (interface exists, no real provider)
 - **OTP/SMS**: `OtpProvider` interface, `ConsoleOtpProvider` implementation
 - **Payments**: pairing has `payment_status` (`not_required` for MVP). No money moves; SRS §12 forbids assuming escrow before legal review
-- **File uploads**: verification takes a text note/reference only; no identity documents stored yet
 
 ### Deferred (Phase 2+)
-Real SMS, payment provider, document upload storage, interactive maps, business/bulk jobs, all AI features, push/SMS notifications.
+Real SMS, payment provider, cloud object storage, interactive maps, business/bulk jobs, all AI features, push/SMS notifications.
 
 ### Added after MVP journey
 - **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
 - **Support tickets**: users open threads (`/tickets`); staff reply and resolve from admin; in-app notifications on reply/status.
 - **Light / dark / system theme** (persisted; zinc palette remaps under `.dark`).
 - **Distance browse**: `near` + `radiusKm` using Jimma neighborhood centers (no map provider).
+- **Verification documents**: local disk upload (JPEG/PNG/WebP/PDF, ≤5 MB, ≤3 files) for pending requests; staff can open them from admin.
 
 ## 3. Repo layout
 

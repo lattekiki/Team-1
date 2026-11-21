@@ -1,7 +1,7 @@
 import { Flag, LifeBuoy, Scale, ScrollText, Search, ShieldCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import type { Role, SupportTicketSummary, VerificationKind } from "@team1/shared";
+import type { Role, SupportTicketSummary, VerificationDocument, VerificationKind } from "@team1/shared";
 import { btn, container, EmptyState, field, Rating, Spinner, StatusPill } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
@@ -32,6 +32,7 @@ type VerificationRow = {
   rating: number | null;
   completedJobs: number;
   createdAt: string;
+  documents: VerificationDocument[];
 };
 type ReportRow = {
   id: string;
@@ -126,6 +127,22 @@ function VerificationQueue({ canDecide, onChanged }: { canDecide: boolean; onCha
               {r.identityVerified && <StatusPill tone="good">{t("badgeIdVerified")}</StatusPill>}
             </div>
             <p className="text-sm text-zinc-700 mt-2">“{r.note}”</p>
+            {r.documents?.length > 0 && (
+              <ul className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                {r.documents.map((d) => (
+                  <li key={d.id}>
+                    <a
+                      href={`/api/verification/${r.id}/documents/${d.id}/file`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-bold underline text-zinc-700 hover:text-zinc-900"
+                    >
+                      {d.originalName}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
             <p className="text-[11px] text-zinc-400 mt-1">{t("requestedAgo", { time: fmt.timeAgo(r.createdAt) })}</p>
             {r.kind === "high_trust" && !r.identityVerified && (
               <p className="text-[11px] font-semibold text-amber-800 mt-1">{t("identityBeforeVip")}</p>

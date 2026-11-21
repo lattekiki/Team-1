@@ -1,14 +1,22 @@
+import { createReadStream, unlinkSync } from "node:fs";
 import { Router } from "express";
 import {
   reportCreateSchema,
   verificationCreateSchema,
   type BlockedUser,
   type Notification,
+  type VerificationDocument,
   type VerificationRecord,
 } from "@team1/shared";
-import { pool, withTransaction } from "../db/pool.ts";
-import { currentUser, requireAuth } from "../lib/auth.ts";
-import { badRequest, conflict, notFound } from "../lib/errors.ts";
+import { pool, withTransaction, type Db } from "../db/pool.ts";
+import { currentUser, requireAuth, type AuthUser } from "../lib/auth.ts";
+import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
+import { idParam } from "../lib/http.ts";
+import {
+  absoluteStoredPath,
+  MAX_VERIFICATION_DOCS,
+  verificationUpload,
+} from "../lib/uploads.ts";
 
 export const safetyRouter = Router();
 
@@ -22,7 +30,32 @@ safetyRouter.post("/reports", requireAuth, async (req, res) => {
   res.status(201).json({ report: { id: rows[0].id, status: "open" } });
 });
 
-const toVerification = (r: Record<string, any>): VerificationRecord => ({
+function toDoc(r: Record<string, any>): VerificationDocument {
+  return {
+    id: r.id,
+    originalName: r.original_name,
+    mimeType: r.mime_type,
+    sizeBytes: r.size_bytes,
+    createdAt: r.created_at,
+  };
+}
+
+async function docsFor(db: Db, verificationIds: string[]): Promise<Map<string, VerificationDocument[]>> {
+  const map = new Map<string, VerificationDocument[]>();
+  if (!verificationIds.length) return map;
+  const { rows } = await db.query(
+    `select * from verification_documents where verification_id = any($1::uuid[]) order by created_at`,
+    [verificationIds],
+  );
+  for (const r of rows) {
+    const list = map.get(r.verification_id) ?? [];
+    list.push(toDoc(r));
+    map.set(r.verification_id, list);
+  }
+  return map;
+}
+
+const toVerification = (r: Record<string, any>, documents: VerificationDocument[] = []): VerificationRecord => ({
   id: r.id,
   kind: r.kind,
   note: r.note,
@@ -30,7 +63,20 @@ const toVerification = (r: Record<string, any>): VerificationRecord => ({
   reviewNote: r.review_note,
   createdAt: r.created_at,
   reviewedAt: r.reviewed_at,
+  documents,
 });
+
+function isStaff(user: AuthUser) {
+  return user.role === "admin" || user.role === "support";
+}
+
+async function loadVerificationAccess(id: string, me: AuthUser) {
+  const { rows } = await pool.query("select * from verification_records where id = $1", [id]);
+  const rec = rows[0];
+  if (!rec) throw notFound("Verification request not found");
+  if (rec.user_id !== me.id && !isStaff(me)) throw notFound("Verification request not found");
+  return rec as Record<string, any>;
+}
 
 safetyRouter.get("/me/verification", requireAuth, async (req, res) => {
   const me = currentUser(req);
@@ -38,7 +84,11 @@ safetyRouter.get("/me/verification", requireAuth, async (req, res) => {
     "select * from verification_records where user_id = $1 order by created_at desc",
     [me.id],
   );
-  res.json({ records: rows.map(toVerification) });
+  const docs = await docsFor(
+    pool,
+    rows.map((r) => r.id),
+  );
+  res.json({ records: rows.map((r) => toVerification(r, docs.get(r.id) ?? [])) });
 });
 
 safetyRouter.post("/verification", requireAuth, async (req, res) => {
@@ -53,7 +103,72 @@ safetyRouter.post("/verification", requireAuth, async (req, res) => {
     "insert into verification_records (user_id, kind, note) values ($1, $2, $3) returning *",
     [me.id, body.kind, body.note],
   );
-  res.status(201).json({ record: toVerification(rows[0]) });
+  res.status(201).json({ record: toVerification(rows[0], []) });
+});
+
+safetyRouter.post(
+  "/verification/:id/documents",
+  requireAuth,
+  verificationUpload.single("file"),
+  async (req, res) => {
+    const me = currentUser(req);
+    const file = req.file;
+    if (!file) throw badRequest("Choose a file to upload", "file_required");
+
+    try {
+      const record = await withTransaction(async (db) => {
+        const { rows } = await db.query("select * from verification_records where id = $1 for update", [
+          idParam(req),
+        ]);
+        const rec = rows[0];
+        if (!rec) throw notFound("Verification request not found");
+        if (rec.user_id !== me.id) throw forbidden("Only the requester can attach documents");
+        if (rec.status !== "pending") {
+          throw conflict("Documents can only be added while the request is pending", "verification_not_pending");
+        }
+        const count = await db.query(
+          "select count(*)::int as n from verification_documents where verification_id = $1",
+          [rec.id],
+        );
+        if (count.rows[0].n >= MAX_VERIFICATION_DOCS) {
+          throw conflict(`You can attach up to ${MAX_VERIFICATION_DOCS} files`, "too_many_documents");
+        }
+        const inserted = await db.query(
+          `insert into verification_documents
+             (verification_id, original_name, stored_name, mime_type, size_bytes, uploaded_by)
+           values ($1, $2, $3, $4, $5, $6) returning *`,
+          [rec.id, file.originalname.slice(0, 200), file.filename, file.mimetype, file.size, me.id],
+        );
+        const all = await docsFor(db, [rec.id]);
+        return toVerification(rec, all.get(rec.id) ?? [toDoc(inserted.rows[0])]);
+      });
+      res.status(201).json({ record });
+    } catch (err) {
+      try {
+        unlinkSync(file.path);
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    }
+  },
+);
+
+safetyRouter.get("/verification/:id/documents/:docId/file", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const rec = await loadVerificationAccess(idParam(req), me);
+  const { rows } = await pool.query(
+    "select * from verification_documents where id = $1 and verification_id = $2",
+    [req.params.docId, rec.id],
+  );
+  const doc = rows[0];
+  if (!doc) throw notFound("Document not found");
+  res.setHeader("Content-Type", doc.mime_type);
+  res.setHeader(
+    "Content-Disposition",
+    `inline; filename="${String(doc.original_name).replace(/"/g, "")}"`,
+  );
+  createReadStream(absoluteStoredPath(doc.stored_name)).pipe(res);
 });
 
 async function userByUsername(name: string | string[] | undefined) {

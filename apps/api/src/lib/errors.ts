@@ -32,6 +32,13 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(err.status).json({ error: { code: err.code, message: err.message, details: err.details } });
     return;
   }
+  if (err?.name === "MulterError") {
+    const code = err.code === "LIMIT_FILE_SIZE" ? "file_too_large" : "bad_request";
+    const message =
+      err.code === "LIMIT_FILE_SIZE" ? "File must be 5 MB or smaller" : "Could not upload that file";
+    res.status(400).json({ error: { code, message } });
+    return;
+  }
   // Postgres error codes: unique violation, malformed uuid/number, check constraint.
   if (err?.code === "23505") {
     res.status(409).json({ error: { code: "conflict", message: "That already exists" } });
