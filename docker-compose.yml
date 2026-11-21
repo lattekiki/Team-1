@@ -1,0 +1,15 @@
+# Optional: Postgres in Docker on port 5433 (the local PostgreSQL 18 service already uses 5432).
+# DATABASE_URL=postgres://postgres:postgres@localhost:5433/team1
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: team1
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:

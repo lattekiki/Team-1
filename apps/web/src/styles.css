@@ -1,0 +1,30 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Inter", "Noto Sans Ethiopic", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-zinc-900 antialiased selection:bg-zinc-900 selection:text-white;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+.tibeb-border {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #111111 0px,
+    #111111 12px,
+    #d97706 12px,
+    #d97706 18px,
+    #059669 18px,
+    #059669 24px,
+    #ffffff 24px,
+    #ffffff 28px
+  );
+}
