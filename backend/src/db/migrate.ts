@@ -3,11 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { env } from "../env.ts";
+import { pgSsl } from "./ssl.ts";
 
 const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../migrations");
 
 export async function ensureDatabaseExists(connectionString: string) {
-  const target = new pg.Client({ connectionString });
+  const target = new pg.Client({ connectionString, ssl: pgSsl(connectionString) });
   try {
     await target.connect();
     await target.query("select 1");
@@ -21,7 +22,7 @@ export async function ensureDatabaseExists(connectionString: string) {
   const url = new URL(connectionString);
   const dbName = decodeURIComponent(url.pathname.slice(1));
   url.pathname = "/postgres";
-  const admin = new pg.Client({ connectionString: url.toString() });
+  const admin = new pg.Client({ connectionString: url.toString(), ssl: pgSsl(url.toString()) });
   await admin.connect();
   try {
     const { rowCount } = await admin.query("select 1 from pg_database where datname = $1", [dbName]);
@@ -36,7 +37,7 @@ export async function ensureDatabaseExists(connectionString: string) {
 
 export async function migrate(connectionString: string) {
   await ensureDatabaseExists(connectionString);
-  const client = new pg.Client({ connectionString });
+  const client = new pg.Client({ connectionString, ssl: pgSsl(connectionString) });
   await client.connect();
   try {
     await client.query(

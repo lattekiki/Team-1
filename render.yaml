@@ -8,10 +8,8 @@ services:
     plan: free
     rootDir: backend
     buildCommand: npm install
-    preDeployCommand: npm run migrate
-    startCommand: npm start
+    startCommand: npm run migrate && npm run seed && npm start
     healthCheckPath: /api/health
-    initialDeployHook: npm run seed
     envVars:
       - key: NODE_VERSION
         value: "22"

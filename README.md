@@ -25,7 +25,7 @@ Open http://localhost:5173. The frontend proxies `/api` to http://localhost:4000
 
 1. Push this repo to GitHub.
 2. [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → `lattekiki/Team-1`.
-3. Apply. After the API is live, the frontend build needs `VITE_API_URL` (wired from the API URL). If the first static build ran too early, click **Manual Deploy** on `team-1-web`.
+3. Apply. The API runs migrations and demo seed on start (free web services cannot use a pre-deploy command). After the API is live, the frontend build needs `VITE_API_URL` (wired from the API URL). If the first static build ran too early, click **Manual Deploy** on `team-1-web`.
 
 Check `https://team-1-api.onrender.com/api/health`, then open the `team-1-web` URL and sign in. OTP codes are returned in the UI (`OTP_EXPOSE_DEV_CODE=true`) and also appear in API logs.
 
