@@ -42,13 +42,14 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow`. Manual/mock track `pending → held → paid|refunded` and write `payment_events`; **no licensed money rail yet** (SRS §12 — pick Chapa/Telebirr/etc. after legal review).
 
 ### Deferred (Phase 2+)
-Licensed payment/escrow rail, interactive maps, all AI features, push/SMS notifications.
+Licensed payment/escrow rail, all AI features, push/SMS notifications.
 
 ### Added after MVP journey
 - **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
 - **Support tickets**: users open threads (`/tickets`); staff reply and resolve from admin; in-app notifications on reply/status.
 - **Light / dark / system theme** (persisted; zinc palette remaps under `.dark`).
-- **Distance browse**: `near` + `radiusKm` using Jimma neighborhood centers (no map provider).
+- **Distance browse**: `near` + `radiusKm` using Jimma neighborhood centers.
+- **Interactive map**: Leaflet + OpenStreetMap on Explore Jobs and job detail (pins from job `lat`/`lng` or area center).
 - **Verification documents**: JPEG/PNG/WebP/PDF (≤5 MB, ≤3 files) via pluggable object storage (`STORAGE_BACKEND=local|s3`) for pending requests; staff can open them from admin.
 - **Business / bulk jobs**: `POST /jobs/bulk` posts the same template once per shift (2–14); job cards and detail show `filledSlots` / `workersNeeded`; select is blocked when seats are full.
 - **SMS/OTP providers**: Africa's Talking + Twilio adapters; console for local/test.

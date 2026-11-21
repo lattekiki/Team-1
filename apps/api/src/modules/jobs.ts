@@ -53,6 +53,8 @@ export function toJobSummary(r: JobRow, viewerId: string | null, trust: WorkerTr
     },
     area: r.area,
     landmark: r.landmark,
+    lat: r.lat != null ? Number(r.lat) : (coordsForArea(r.area)?.lat ?? null),
+    lng: r.lng != null ? Number(r.lng) : (coordsForArea(r.area)?.lng ?? null),
     startsAt: r.starts_at,
     endsAt: r.ends_at,
     payType: r.pay_type,

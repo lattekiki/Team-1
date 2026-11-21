@@ -255,6 +255,16 @@ describe("hard rules", () => {
     await apply().expect(201);
   });
 
+  it("returns map coordinates on published jobs", async () => {
+    const employer = await signUp("map_pin_boss");
+    await employer.agent.patch("/api/me").send({ activeMode: "employer" }).expect(200);
+    const job = await postJob(employer.agent, "errands", "Map pin errand");
+    const res = await request(app).get(`/api/jobs/${job}`).expect(200);
+    expect(res.body.job.lat).toEqual(expect.any(Number));
+    expect(res.body.job.lng).toEqual(expect.any(Number));
+    expect(res.body.job.area).toBe("Merkato");
+  });
+
   it("filters jobs by distance from a Jimma neighborhood center", async () => {
     const employer = await signUp("near_filter_shop");
     const errands = await categoryId("errands");

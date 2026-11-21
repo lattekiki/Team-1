@@ -116,6 +116,10 @@ export const en = {
   minPayOption: "{amount}+ ETB",
   privacyTitle: "Username & Contact Privacy",
   privacyNote: "Usernames only. Phone numbers stay hidden until the worker confirms the pairing.",
+  mapTitle: "Jobs on the map",
+  mapHint: "{n} pinned in Jimma",
+  mapEmpty: "No jobs with a location to show on the map yet.",
+  mapOpenJob: "Open selected job",
 
   // Labels for enum values
   tier_vip: "Tier 1: VIP",

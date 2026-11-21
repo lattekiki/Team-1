@@ -113,6 +113,10 @@ export const am: Messages = {
   minPayOption: "{amount}+ ብር",
   privacyTitle: "የተጠቃሚ ስም እና የስልክ ግላዊነት",
   privacyNote: "የተጠቃሚ ስም ብቻ ይታያል። ሠራተኛው ስምምነቱን እስኪያረጋግጥ ድረስ ስልክ ቁጥሮች ተደብቀው ይቆያሉ።",
+  mapTitle: "ሥራዎች በካርታ ላይ",
+  mapHint: "በጅማ {n} ቦታዎች ተሰይመዋል",
+  mapEmpty: "በካርታ ላይ የሚታይ አካባቢ ያለው ሥራ ገና የለም።",
+  mapOpenJob: "የተመረጠውን ሥራ ክፈት",
 
   tier_vip: "ደረጃ 1፡ VIP",
   tier_skilled: "ደረጃ 2፡ ሙያዊ",

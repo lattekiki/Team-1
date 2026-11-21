@@ -113,6 +113,10 @@ export const om: Messages = {
   minPayOption: "Birrii {amount}+",
   privacyTitle: "Iccitii Maqaa Fayyadamaa & Quunnamtii",
   privacyNote: "Maqaa fayyadamaa qofa. Lakkoofsi bilbilaa hanga hojjetaan waliigaltee mirkaneessutti dhoksaa ta'a.",
+  mapTitle: "Hojiiwwan kaartaa irratti",
+  mapHint: "Jimmaa keessatti {n} tuqaman",
+  mapEmpty: "Ammaaf hojiin bakka qabu kaartaa irratti hin jiru.",
+  mapOpenJob: "Hojii filatame bani",
 
   tier_vip: "Sadarkaa 1: VIP",
   tier_skilled: "Sadarkaa 2: Ogummaa",

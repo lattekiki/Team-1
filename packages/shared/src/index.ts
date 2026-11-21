@@ -290,6 +290,9 @@ export type JobSummary = {
   employer: { username: string; employerType: EmployerType; businessName: string | null };
   area: string;
   landmark: string;
+  /** Approximate map pin (job coords or Jimma neighborhood center). */
+  lat: number | null;
+  lng: number | null;
   startsAt: string | null;
   endsAt: string | null;
   payType: PayType;

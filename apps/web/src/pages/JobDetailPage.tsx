@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Applicant, JobSummary } from "@team1/shared";
 import { ApplyModal } from "../components/ApplyModal.tsx";
+import { JobLocationMap } from "../components/JobsMap.tsx";
 import { ReportButton } from "../components/Modals.tsx";
 import { PostJobModal } from "../components/PostJobModal.tsx";
 import { SaveJobButton } from "../components/SaveJobButton.tsx";
@@ -207,6 +208,8 @@ export function JobDetailPage() {
 
             {j.description && <p className="mt-6 text-sm leading-relaxed text-zinc-700 whitespace-pre-line">{j.description}</p>}
           </div>
+
+          <JobLocationMap job={j} />
 
           {isOwner && (
             <div className="space-y-4">

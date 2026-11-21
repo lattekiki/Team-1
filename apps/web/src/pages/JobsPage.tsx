@@ -12,6 +12,7 @@ import {
 } from "@team1/shared";
 import { ApplyModal } from "../components/ApplyModal.tsx";
 import { JobCard } from "../components/JobCard.tsx";
+import { JobsMap } from "../components/JobsMap.tsx";
 import { container, EmptyState, ErrorBox, field, Spinner } from "../components/ui.tsx";
 import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
@@ -25,6 +26,7 @@ export function JobsPage() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [applying, setApplying] = useState<JobSummary | null>(null);
+  const [mapFocus, setMapFocus] = useState<string | null>(null);
   const [q, setQ] = useState(params.get("q") ?? "");
   const categories = useApi<{ categories: Category[] }>("/categories");
 
@@ -235,17 +237,26 @@ export function JobsPage() {
             </div>
           </aside>
 
-          <div className="lg:col-span-9">
+          <div className="lg:col-span-9 space-y-5">
             {jobs.loading && !jobs.data ? (
               <Spinner />
             ) : jobs.error ? (
               <ErrorBox message={jobs.error.message} />
             ) : jobs.data?.jobs.length ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {jobs.data.jobs.map((job) => (
-                  <JobCard key={job.id} job={job} onApply={setApplying} />
-                ))}
-              </div>
+              <>
+                <JobsMap jobs={jobs.data.jobs} selectedId={mapFocus} onSelect={setMapFocus} />
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {jobs.data.jobs.map((job) => (
+                    <div
+                      key={job.id}
+                      onMouseEnter={() => setMapFocus(job.id)}
+                      className={mapFocus === job.id ? "ring-2 ring-zinc-900 rounded-3xl" : ""}
+                    >
+                      <JobCard job={job} onApply={setApplying} />
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
               <EmptyState icon={Search} title={t("noJobs")}>
                 {t("noJobsHint")}
