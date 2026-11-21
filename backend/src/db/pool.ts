@@ -6,7 +6,7 @@ pg.types.setTypeParser(pg.types.builtins.NUMERIC, (v) => Number(v));
 
 export const pool = new pg.Pool({
   connectionString: env.NODE_ENV === "test" && env.TEST_DATABASE_URL ? env.TEST_DATABASE_URL : env.DATABASE_URL,
-  max: 10,
+  max: process.env.VERCEL ? 1 : 10,
 });
 
 export type Db = Pick<pg.PoolClient, "query">;

@@ -17,6 +17,7 @@ import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
 import { env } from "../env.ts";
+import { primaryWebOrigin } from "../lib/cors.ts";
 import { markPairingHeld } from "../lib/payment-hold.ts";
 import {
   initialPaymentStatus,
@@ -409,7 +410,7 @@ pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) 
     }
     const quote = quotePayment(jobPay(p));
     const amount = quote.employerPaysEtb;
-    const returnUrl = `${env.WEB_ORIGIN.replace(/\/$/, "")}/pairings/${p.id}?payment=return`;
+    const returnUrl = `${primaryWebOrigin()}/pairings/${p.id}?payment=return`;
     const callbackUrl = env.PUBLIC_API_URL
       ? `${env.PUBLIC_API_URL.replace(/\/$/, "")}/api/payments/chapa/callback`
       : undefined;

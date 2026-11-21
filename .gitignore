@@ -8,6 +8,8 @@ coverage/
 .DS_Store
 .vite/
 backend/uploads/
+frontend/.git/
+backend/.git/
 .*/
 !.gitignore
 !.github/

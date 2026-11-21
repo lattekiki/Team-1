@@ -21,6 +21,7 @@ import { objectStore } from "./lib/storage.ts";
 import { pushConfigured } from "./lib/push.ts";
 import { vipCategoriesEnabled } from "./lib/pilot.ts";
 import { env } from "./env.ts";
+import { corsFromWeb } from "./lib/cors.ts";
 
 export function createApp() {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp() {
     res.setHeader("X-Frame-Options", "DENY");
     next();
   });
+  app.use(corsFromWeb);
   app.use(
     express.json({
       limit: "100kb",

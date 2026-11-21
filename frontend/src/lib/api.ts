@@ -24,7 +24,7 @@ export function localizeError(code: string, serverMessage: string | undefined, d
   return translateDynamic(`err_${code}`, serverMessage ?? translateDynamic("err_internal", ""));
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
   let res: Response;

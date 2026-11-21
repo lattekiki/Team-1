@@ -119,7 +119,7 @@ authRouter.post("/auth/otp/verify", otpLimiter, async (req, res) => {
     }
 
     await db.query("update otp_codes set consumed_at = now() where id = $1", [otp.id]);
-    await createSession(db, res, user.id);
+    await createSession(db, res, user.id, req);
     return { userId: user.id as string };
   });
 
@@ -128,7 +128,7 @@ authRouter.post("/auth/otp/verify", otpLimiter, async (req, res) => {
 });
 
 authRouter.post("/auth/logout", async (req, res) => {
-  await destroySession(req.cookies?.[SESSION_COOKIE], res);
+  await destroySession(req.cookies?.[SESSION_COOKIE], res, req);
   res.status(204).end();
 });
 

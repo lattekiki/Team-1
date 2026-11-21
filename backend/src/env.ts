@@ -9,9 +9,12 @@ const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().positive().default(4000),
-    DATABASE_URL: z.string().url("DATABASE_URL must be a postgres:// URL (copy backend/.env.example to backend/.env)"),
+    DATABASE_URL: process.env.VERCEL
+      ? z.string().url().default("postgres://127.0.0.1:5432/vercel_build")
+      : z.string().url("DATABASE_URL must be a postgres:// URL (copy .env.example to .env)"),
     TEST_DATABASE_URL: z.string().url().optional(),
-    WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
+    /** Frontend origin(s), comma-separated. Use https://*.vercel.app to allow Vercel preview URLs. */
+    WEB_ORIGIN: z.string().default("http://localhost:5173"),
 
     /** console (default) | africastalking | twilio */
     OTP_PROVIDER: z.enum(["console", "africastalking", "twilio"]).default("console"),

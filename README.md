@@ -1,64 +1,64 @@
 # HojiiGO — flexible work marketplace (pilot)
 
-A marketplace connecting people who want flexible work with households and businesses.
-Product spec: `SRS.docx`. Build plan, scope, data model and API: [`docs/PLAN.md`](docs/PLAN.md).
+Two Node projects in one GitHub repo (best for Vercel): **backend** (API) and **frontend** (web).
 
-## Stack
+Product spec: `SRS.docx`. Plan: [`docs/PLAN.md`](docs/PLAN.md).
 
-npm workspaces monorepo, TypeScript throughout.
+## Local
 
-- `frontend` — React + Vite (http://localhost:5173, proxies `/api` to the API)
-- `backend` — Node + Express 5 (http://localhost:4000), PostgreSQL via `pg`, SQL migrations in `backend/migrations`
-- `packages/shared` — Zod schemas and enums used by both
-
-## Setup
-
-Requires Node 22+ and PostgreSQL 16+ (local service, or `docker compose up -d` for one on port 5433).
+Requires Node 22+ and PostgreSQL (`docker compose up -d` in `backend/` for port 5433).
 
 ```powershell
 npm install
-Copy-Item backend/.env.example backend/.env   # then set your Postgres password in DATABASE_URL
-npm run db:migrate                               # creates the database if missing, applies migrations
-npm run db:seed                                  # demo users and six published demo jobs
-npm run dev                                      # API + web together
+npm run install:all
+Copy-Item backend/.env.example backend/.env   # then set DATABASE_URL
+npm run db:migrate
+npm run db:seed
+npm run dev
 ```
 
-Open http://localhost:5173. Organizations that want many workers on a monthly agreement use **Contact us** (`/contact`); requests show on the admin Organizations tab (example fee 5,000 ETB/month). Workers who finish 30 jobs get an Active worker badge and can request VIP; an admin still decides.
+Open http://localhost:5173. The frontend proxies `/api` to http://localhost:4000.
 
-Signed-in workers see **suggested jobs** on Home and Dashboard (skills, area, similar completed work).
-Employers can tap **Suggest from title** when posting; applicant lists show the same fit chips without hiding new workers.
-**Help me write** on post-job and apply uses local templates by default (`LLM_PROVIDER=template`). Set `openai` plus `LLM_API_KEY` for a live model.
+## Deploy on Vercel (two projects, one repo)
 
-## Sign-in during development
+Use **this** GitHub repo twice. Do not set the Root Directory to the repo root.
 
-Default `OTP_PROVIDER=console` logs the code and returns it as `devCode` for the login UI. Set
-`OTP_PROVIDER=africastalking` or `twilio` (plus API keys in `backend/.env`) to send real SMS;
-`devCode` is then withheld unless `OTP_EXPOSE_DEV_CODE=true`.
+### 1. Backend project
 
-Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow`, which only records the payment. No money is transferred until Chapa is connected. The employer pays first (job pay plus 2.5%); phone numbers stay hidden until that record is held; an admin confirms the work is done, then records the worker's payout (job pay minus 2.5%). HojiiGO keeps 5%. Signed-in people can message an admin from Contact us; the same page still takes organization monthly-agreement requests.
-Use `off` to settle only outside the app, `manual` to record cash/bank payments without a hold step, or
-`chapa` with `CHAPA_SECRET_KEY` for hosted Chapa checkout (Telebirr/cards/banks). Set `PUBLIC_API_URL` so
-Chapa can reach `/api/payments/chapa/callback` and `/api/payments/webhooks/chapa`.
+- New Vercel project → this repo
+- **Root Directory:** `backend`
+- **Framework preset:** Other
+- Environment variables:
+  - `DATABASE_URL` — hosted Postgres (Neon, Supabase, Vercel Postgres). Use a pooler URL.
+  - `WEB_ORIGIN` — `https://<frontend>.vercel.app,https://*.vercel.app`
+  - `PUBLIC_API_URL` — `https://<backend>.vercel.app`
+  - `NODE_ENV` — `production`
+  - Copy any other keys you use from `backend/.env.example` (`PAYMENTS_MODE`, `OTP_PROVIDER`, …)
+- Build runs `npm run migrate`. After the first deploy, copy the backend URL.
 
-Verification documents default to local disk (`STORAGE_BACKEND=local`). Set `STORAGE_BACKEND=s3` plus
-`S3_BUCKET` / `S3_REGION` / keys (and optional `S3_ENDPOINT` for R2 or MinIO) to store them in the cloud.
+Local disk uploads do not persist on Vercel. Set `STORAGE_BACKEND=s3` (and bucket keys) if you need verification files in production.
 
-Browser push: set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (see `.env.example`, or `npx web-push generate-vapid-keys`),
-then enable push on the Notifications page. Optional `NOTIFY_SMS=true` also texts high-priority alerts via `OTP_PROVIDER`.
+### 2. Frontend project
 
-| Demo account | Phone | Role |
+- New Vercel project → **the same repo**
+- **Root Directory:** `frontend`
+- **Framework preset:** Vite
+- Environment variables:
+  - `VITE_API_URL` — `https://<backend>.vercel.app` (no `/api` suffix)
+
+Redeploy the frontend after `VITE_API_URL` is set (Vite bakes it in at build time).
+
+### Check
+
+Open `https://<backend>.vercel.app/api/health`. Then open the frontend URL and sign in.
+
+## Demo accounts
+
+| Account | Phone | Role |
 |---|---|---|
 | `admin` | `0911000001` | Admin console |
 | `abebe_worker` | `0911000002` | Worker |
-| `merkato_shop` | `0911000003` | Business employer (3 demo jobs) |
-| `kochi_family` | `0911000004` | Household employer (3 demo jobs, including a VIP childcare job) |
+| `merkato_shop` | `0911000003` | Business employer |
+| `kochi_family` | `0911000004` | Household employer |
 
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | API (watch mode) and web dev server |
-| `npm run db:migrate` | Apply pending SQL migrations |
-| `npm run db:seed` | Insert demo accounts and jobs (safe to re-run) |
-| `npm run typecheck` | Type-check every workspace |
-| `npm test` | API tests (uses `TEST_DATABASE_URL`) |
+OTP in development is printed by the API (`OTP_PROVIDER=console`).

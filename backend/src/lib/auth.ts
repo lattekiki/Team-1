@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { RequestHandler, Response } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import type { Mode, Role } from "@team1/shared";
 import { pool, type Db } from "../db/pool.ts";
 import { isProd } from "../env.ts";
+import { isAllowedOrigin } from "./cors.ts";
 import { forbidden, unauthorized } from "./errors.ts";
 
 export const SESSION_COOKIE = "sid";
@@ -29,7 +30,20 @@ declare global {
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
-export async function createSession(db: Db, res: Response, userId: string) {
+function sessionCookieOptions(req: Request, expires?: Date) {
+  const origin = req.headers.origin;
+  const apiOrigin = `${req.protocol}://${req.get("host")}`;
+  const crossSite = isAllowedOrigin(origin) && origin!.replace(/\/$/, "") !== apiOrigin;
+  return {
+    httpOnly: true,
+    path: "/",
+    sameSite: (crossSite ? "none" : "lax") as "none" | "lax",
+    secure: crossSite || isProd,
+    expires,
+  };
+}
+
+export async function createSession(db: Db, res: Response, userId: string, req: Request) {
   const token = randomBytes(32).toString("base64url");
   const expires = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await db.query("insert into sessions (token_hash, user_id, expires_at) values ($1, $2, $3)", [
@@ -37,18 +51,12 @@ export async function createSession(db: Db, res: Response, userId: string) {
     userId,
     expires,
   ]);
-  res.cookie(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProd,
-    expires,
-    path: "/",
-  });
+  res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req, expires));
 }
 
-export async function destroySession(token: string | undefined, res: Response) {
+export async function destroySession(token: string | undefined, res: Response, req: Request) {
   if (token) await pool.query("delete from sessions where token_hash = $1", [sha256(token)]);
-  res.clearCookie(SESSION_COOKIE, { path: "/" });
+  res.clearCookie(SESSION_COOKIE, sessionCookieOptions(req));
 }
 
 export const loadUser: RequestHandler = async (req, _res, next) => {
