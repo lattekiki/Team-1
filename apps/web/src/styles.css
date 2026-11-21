@@ -1,9 +1,41 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Plus Jakarta Sans", "Inter", "Noto Sans Ethiopic", ui-sans-serif, system-ui, sans-serif;
   --color-canvas: #f7f3ec;
+}
+
+/* Remap zinc + white under .dark so existing utilities flip without rewriting every page. */
+.dark {
+  --color-canvas: #141210;
+  --color-white: #1c1b19;
+  --color-black: #f4f0e8;
+  --color-zinc-50: #221f1c;
+  --color-zinc-100: #2a2724;
+  --color-zinc-200: #3f3b36;
+  --color-zinc-300: #57524c;
+  --color-zinc-400: #8a837a;
+  --color-zinc-500: #a39b90;
+  --color-zinc-600: #c4bbb0;
+  --color-zinc-700: #d9d1c6;
+  --color-zinc-800: #ebe4d8;
+  --color-zinc-900: #f4f0e8;
+  --color-zinc-950: #0c0b0a;
+  --color-stone-200: #3f3b36;
+  --color-red-50: #3b1c1c;
+  --color-red-100: #4a2222;
+  --color-red-700: #fca5a5;
+  --color-amber-50: #3b2e14;
+  --color-amber-100: #4a3a18;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+  --color-emerald-50: #14332a;
+  --color-emerald-100: #1a4034;
+  --color-emerald-800: #6ee7b7;
 }
 
 @layer base {
@@ -13,6 +45,12 @@
       radial-gradient(60rem 40rem at 0% 0%, rgb(217 119 6 / 0.07), transparent 60%),
       radial-gradient(50rem 40rem at 100% 100%, rgb(5 150 105 / 0.07), transparent 60%);
     background-attachment: fixed;
+  }
+  .dark body,
+  :where(.dark) body {
+    background-image:
+      radial-gradient(60rem 40rem at 0% 0%, rgb(217 119 6 / 0.12), transparent 60%),
+      radial-gradient(50rem 40rem at 100% 100%, rgb(5 150 105 / 0.1), transparent 60%);
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -31,5 +69,19 @@
     #059669 24px,
     #ffffff 24px,
     #ffffff 28px
+  );
+}
+
+.dark .tibeb-border {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #f4f0e8 0px,
+    #f4f0e8 12px,
+    #d97706 12px,
+    #d97706 18px,
+    #059669 18px,
+    #059669 24px,
+    #3f3b36 24px,
+    #3f3b36 28px
   );
 }

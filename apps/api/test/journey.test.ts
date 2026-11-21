@@ -223,6 +223,30 @@ describe("hard rules", () => {
     await apply().expect(201);
   });
 
+  it("filters jobs by distance from a Jimma neighborhood center", async () => {
+    const employer = await signUp("near_filter_shop");
+    const errands = await categoryId("errands");
+    const post = async (title: string, area: string) =>
+      (
+        await employer.agent
+          .post("/api/jobs")
+          .send({ categoryId: errands, title, area, payType: "daily", payMin: 500, publish: true })
+          .expect(201)
+      ).body.job.id as string;
+    const merkato = await post("Nearfilter Merkato run", "Merkato");
+    const ginjo = await post("Nearfilter Ginjo run", "Ginjo");
+    // Push the Ginjo listing far enough south that a 3 km Merkato radius excludes it.
+    await pool.query("update jobs set lat = 7.55, lng = 36.84 where id = $1", [ginjo]);
+    const ids = async (query: Record<string, string>) =>
+      (await request(app).get("/api/jobs").query({ q: "Nearfilter", ...query }).expect(200)).body.jobs.map(
+        (j: { id: string }) => j.id,
+      );
+
+    expect(await ids({ near: "Merkato", radiusKm: "3" })).toEqual([merkato]);
+    expect(await ids({ near: "Merkato", radiusKm: "20" })).toEqual(expect.arrayContaining([merkato, ginjo]));
+    await request(app).get("/api/jobs").query({ near: "Atlantis" }).expect(400);
+  });
+
   it("filters jobs by Jimma-local date and minimum pay", async () => {
     const employer = await signUp("date_filter_shop");
     const errands = await categoryId("errands");

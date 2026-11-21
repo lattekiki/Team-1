@@ -35,6 +35,23 @@ export const JIMMA_AREAS = [
   { id: "Ginjo", am: "ጊንጆ" },
 ] as const;
 
+/** Approximate neighborhood centers for distance filters (no map provider). */
+export const JIMMA_AREA_COORDS: Record<(typeof JIMMA_AREAS)[number]["id"], { lat: number; lng: number }> = {
+  Kochi: { lat: 7.69, lng: 36.82 },
+  Merkato: { lat: 7.678, lng: 36.84 },
+  "Bosa Kitto": { lat: 7.66, lng: 36.85 },
+  "JU Campus": { lat: 7.68, lng: 36.86 },
+  Hermata: { lat: 7.67, lng: 36.825 },
+  Awetu: { lat: 7.665, lng: 36.815 },
+  Ginjo: { lat: 7.655, lng: 36.83 },
+};
+
+export const NEAR_RADIUS_KM = [3, 5, 10, 20] as const;
+
+export function coordsForArea(area: string): { lat: number; lng: number } | null {
+  return (JIMMA_AREA_COORDS as Record<string, { lat: number; lng: number }>)[area] ?? null;
+}
+
 export type Language = (typeof LANGUAGES)[number];
 export type Role = (typeof ROLES)[number];
 export type Mode = (typeof MODES)[number];
@@ -144,6 +161,9 @@ export const jobQuerySchema = z.object({
   payType: z.enum(PAY_TYPES).optional(),
   minPay: z.coerce.number().min(0).optional(),
   when: z.enum(JOB_WHEN).optional(),
+  /** Center neighborhood for radius search (Jimma area id). */
+  near: z.string().trim().max(80).optional(),
+  radiusKm: z.coerce.number().min(1).max(50).optional(),
   eligibleOnly: z.enum(["1", "true"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });

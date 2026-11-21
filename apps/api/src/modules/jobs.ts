@@ -1,5 +1,12 @@
 import { Router } from "express";
-import { jobCreateSchema, jobQuerySchema, jobUpdateSchema, type JobSummary, type JobWhen } from "@team1/shared";
+import {
+  coordsForArea,
+  jobCreateSchema,
+  jobQuerySchema,
+  jobUpdateSchema,
+  type JobSummary,
+  type JobWhen,
+} from "@team1/shared";
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth } from "../lib/auth.ts";
 import { notBlockedSql } from "../lib/blocks.ts";
@@ -136,6 +143,30 @@ jobsRouter.get("/jobs", async (req, res) => {
   if (q.area) add((n) => `j.area = $${n}`, q.area);
   if (q.payType) add((n) => `j.pay_type = $${n}`, q.payType);
   if (q.minPay != null) add((n) => `coalesce(j.pay_max, j.pay_min) >= $${n}`, q.minPay);
+  if (q.near) {
+    const center = coordsForArea(q.near);
+    if (!center) throw badRequest("Unknown neighborhood for distance search", "invalid_near_area");
+    const radius = q.radiusKm ?? 5;
+    // Haversine km; jobs without coords fall back to their area's known center via CASE.
+    const jobLat = `coalesce(j.lat, case j.area
+      when 'Kochi' then 7.69 when 'Merkato' then 7.678 when 'Bosa Kitto' then 7.66
+      when 'JU Campus' then 7.68 when 'Hermata' then 7.67 when 'Awetu' then 7.665
+      when 'Ginjo' then 7.655 else null end)`;
+    const jobLng = `coalesce(j.lng, case j.area
+      when 'Kochi' then 36.82 when 'Merkato' then 36.84 when 'Bosa Kitto' then 36.85
+      when 'JU Campus' then 36.86 when 'Hermata' then 36.825 when 'Awetu' then 36.815
+      when 'Ginjo' then 36.83 else null end)`;
+    add(
+      (n) => `${jobLat} is not null and (
+        6371 * acos(least(1::float, greatest(-1::float,
+          cos(radians($${n})) * cos(radians(${jobLat})) * cos(radians(${jobLng}) - radians($${n + 1}))
+          + sin(radians($${n})) * sin(radians(${jobLat}))
+        )))
+      ) <= $${n + 2}`,
+      center.lat,
+    );
+    params.push(center.lng, radius);
+  }
   if (q.when) {
     const [fromDay, toDay] = WHEN_DAYS[q.when];
     where.push(
@@ -186,11 +217,12 @@ jobsRouter.post("/jobs", requireAuth, async (req, res) => {
   const me = currentUser(req);
   const body = jobCreateSchema.parse(req.body);
   const tier = await tierFor(pool, body.categoryId);
+  const coords = coordsForArea(body.area);
   const { rows } = await pool.query(
-    `insert into jobs (employer_id, category_id, tier, title, description, area, landmark, starts_at, ends_at,
+    `insert into jobs (employer_id, category_id, tier, title, description, area, landmark, lat, lng, starts_at, ends_at,
                        pay_type, pay_min, pay_max, negotiable, payment_terms, workers_needed, application_deadline,
                        status, published_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      returning id`,
     [
       me.id,
@@ -200,6 +232,8 @@ jobsRouter.post("/jobs", requireAuth, async (req, res) => {
       body.description,
       body.area,
       body.landmark,
+      coords?.lat ?? null,
+      coords?.lng ?? null,
       body.startsAt ?? null,
       body.endsAt ?? null,
       body.payType,
@@ -242,6 +276,11 @@ jobsRouter.patch("/jobs/:id", requireAuth, async (req, res) => {
     workers_needed: body.workersNeeded,
     application_deadline: body.applicationDeadline,
   };
+  if (body.area !== undefined) {
+    const coords = coordsForArea(body.area);
+    columns.lat = coords?.lat ?? null;
+    columns.lng = coords?.lng ?? null;
+  }
   const entries = Object.entries(columns).filter(([, v]) => v !== undefined);
   if (entries.length) {
     const sets = entries.map(([k], i) => `${k} = $${i + 2}`).join(", ");

@@ -1,7 +1,15 @@
 import { Lock, Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { JIMMA_AREAS, JOB_WHEN, PAY_TYPES, TIERS, type Category, type JobSummary } from "@team1/shared";
+import {
+  JIMMA_AREAS,
+  JOB_WHEN,
+  NEAR_RADIUS_KM,
+  PAY_TYPES,
+  TIERS,
+  type Category,
+  type JobSummary,
+} from "@team1/shared";
 import { ApplyModal } from "../components/ApplyModal.tsx";
 import { JobCard } from "../components/JobCard.tsx";
 import { container, EmptyState, ErrorBox, field, Spinner } from "../components/ui.tsx";
@@ -9,7 +17,7 @@ import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useApi } from "../lib/useApi.ts";
 
-const FILTER_KEYS = ["q", "category", "tier", "area", "when", "payType", "minPay", "eligibleOnly"] as const;
+const FILTER_KEYS = ["q", "category", "tier", "area", "when", "payType", "minPay", "near", "radiusKm", "eligibleOnly"] as const;
 const MIN_PAY_OPTIONS = [200, 500, 1000, 2000];
 
 export function JobsPage() {
@@ -27,12 +35,15 @@ export function JobsPage() {
   }
   const jobs = useApi<{ jobs: JobSummary[] }>(`/jobs?${query}`);
 
-  const setFilter = (key: (typeof FILTER_KEYS)[number], value: string) => {
+  const setFilters = (updates: Partial<Record<(typeof FILTER_KEYS)[number], string>>) => {
     const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
+    for (const [key, value] of Object.entries(updates) as [keyof typeof updates, string | undefined][]) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
     setParams(next, { replace: true });
   };
+  const setFilter = (key: (typeof FILTER_KEYS)[number], value: string) => setFilters({ [key]: value });
 
   return (
     <section className="py-12 lg:py-16">
@@ -113,6 +124,47 @@ export function JobsPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label htmlFor="f-near" className={field.label}>
+                  {t("filterNear")}
+                </label>
+                <select
+                  id="f-near"
+                  value={params.get("near") ?? ""}
+                  onChange={(e) => {
+                    const near = e.target.value;
+                    if (!near) setFilters({ near: "", radiusKm: "" });
+                    else setFilters({ near, radiusKm: params.get("radiusKm") || "5" });
+                  }}
+                  className={field.select}
+                >
+                  <option value="">{t("nearAny")}</option>
+                  {JIMMA_AREAS.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {fmt.area(a.id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {params.get("near") && (
+                <div>
+                  <label htmlFor="f-radius" className={field.label}>
+                    {t("filterRadius")}
+                  </label>
+                  <select
+                    id="f-radius"
+                    value={params.get("radiusKm") ?? "5"}
+                    onChange={(e) => setFilter("radiusKm", e.target.value)}
+                    className={field.select}
+                  >
+                    {NEAR_RADIUS_KM.map((km) => (
+                      <option key={km} value={km}>
+                        {t("radiusOption", { km })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label htmlFor="f-when" className={field.label}>
                   {t("filterWhen")}

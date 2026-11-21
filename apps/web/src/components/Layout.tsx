@@ -1,4 +1,4 @@
-import { Bell, Briefcase, Building2, LifeBuoy, LogOut, Shield, UserRound } from "lucide-react";
+import { Bell, Briefcase, Building2, LifeBuoy, LogOut, Monitor, Moon, Shield, Sun, UserRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import type { Language } from "@team1/shared";
@@ -6,6 +6,7 @@ import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { initials } from "../lib/format.ts";
+import { useTheme } from "../lib/theme.tsx";
 import { container } from "./ui.tsx";
 
 const LANGS: { code: Language; label: string }[] = [
@@ -32,6 +33,24 @@ function useUnreadCount(enabled: boolean) {
     };
   }, [enabled, location.pathname]);
   return unread;
+}
+
+function ThemeToggle() {
+  const { theme, cycleTheme } = useTheme();
+  const { t } = useI18n();
+  const Icon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
+  const label = theme === "dark" ? t("themeDark") : theme === "light" ? t("themeLight") : t("themeSystem");
+  return (
+    <button
+      type="button"
+      onClick={cycleTheme}
+      aria-label={t("themeToggleAria", { mode: label })}
+      title={label}
+      className="p-2 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-700 hover:text-zinc-900"
+    >
+      <Icon className="w-4 h-4" />
+    </button>
+  );
 }
 
 function Header() {
@@ -98,6 +117,8 @@ function Header() {
               </button>
             ))}
           </div>
+
+          <ThemeToggle />
 
           {isStaff && (
             <NavLink

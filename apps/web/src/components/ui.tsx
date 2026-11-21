@@ -42,7 +42,8 @@ export const field = {
     "w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:border-zinc-900",
   select:
     "w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-zinc-900",
-  textarea: "w-full rounded-2xl border border-zinc-200 p-3 text-sm focus:outline-none focus:border-zinc-900",
+  textarea:
+    "w-full rounded-2xl border border-zinc-200 bg-white p-3 text-sm text-zinc-900 focus:outline-none focus:border-zinc-900",
 };
 
 export const container = "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
