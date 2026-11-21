@@ -8,6 +8,7 @@ import { checkEligibility, notEligible } from "../lib/eligibility.ts";
 import { conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
 import { reputationFor } from "../lib/stats.ts";
+import { expireStaleJobs } from "./jobs.ts";
 
 const ACTIVE_PAIRING = "('pending_confirmation', 'confirmed', 'in_progress', 'completed')";
 
@@ -27,6 +28,7 @@ export const applicationsRouter = Router();
 applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) => {
   const me = currentUser(req);
   const body = applicationCreateSchema.parse(req.body);
+  await expireStaleJobs();
 
   const application = await withTransaction(async (db) => {
     const { rows } = await db.query("select * from jobs where id = $1 for share", [idParam(req)]);

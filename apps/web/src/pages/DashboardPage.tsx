@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   Award,
+  Bookmark,
   Briefcase,
   CheckCircle2,
   Circle,
@@ -15,6 +16,8 @@ import {
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import type { Applicant, JobSummary, Me, MyApplication, Pairing, Rebooking } from "@team1/shared";
+import { ApplyModal } from "../components/ApplyModal.tsx";
+import { JobCard } from "../components/JobCard.tsx";
 import { RebookModal } from "../components/Modals.tsx";
 import { PostJobModal } from "../components/PostJobModal.tsx";
 import { btn, container, EmptyState, Rating, SectionTitle, Spinner, StatusPill, TrustTierBadge } from "../components/ui.tsx";
@@ -158,16 +161,19 @@ function RebookRequest({ rebooking, onChanged }: { rebooking: Rebooking; onChang
 
 function WorkerDashboard({ user }: { user: Me }) {
   const { t, fmt } = useI18n();
+  const [applying, setApplying] = useState<JobSummary | null>(null);
   const profile = useApi<{ worker: { skillIds: number[] } | null }>("/me/profile");
   const applications = useApi<{ applications: MyApplication[] }>("/me/applications");
   const pairings = useApi<{ pairings: Pairing[] }>("/me/pairings?role=worker");
   const rebookings = useApi<{ rebookings: Rebooking[] }>("/me/rebookings");
+  const favorites = useApi<{ jobs: JobSummary[] }>("/me/favorites");
 
   const incoming = rebookings.data?.rebookings.filter((r) => r.direction === "incoming" && r.status === "pending") ?? [];
   const pairingList = pairings.data?.pairings ?? [];
   const active = pairingList.filter((p) => ACTIVE_PAIRING.includes(p.status) || (p.status === "completed" && !p.myReview));
   const past = pairingList.filter((p) => !active.includes(p));
   const openApps = applications.data?.applications.filter((a) => !a.pairing) ?? [];
+  const savedJobs = favorites.data?.jobs ?? [];
 
   return (
     <div className="space-y-10">
@@ -179,6 +185,29 @@ function WorkerDashboard({ user }: { user: Me }) {
           {incoming.map((r) => (
             <RebookRequest key={r.id} rebooking={r} onChanged={rebookings.reload} />
           ))}
+        </div>
+      )}
+
+      {(favorites.loading || savedJobs.length > 0) && (
+        <div className="space-y-3">
+          <SectionTitle icon={Bookmark}>{t("savedJobsTitle")}</SectionTitle>
+          {favorites.loading && !favorites.data ? (
+            <Spinner />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {savedJobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  onApply={setApplying}
+                  onSavedChange={(id, saved) => {
+                    if (!saved) favorites.reload();
+                    else void id;
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -250,6 +279,18 @@ function WorkerDashboard({ user }: { user: Me }) {
             ))}
           </div>
         </div>
+      )}
+
+      {applying && (
+        <ApplyModal
+          job={applying}
+          onClose={() => setApplying(null)}
+          onApplied={() => {
+            setApplying(null);
+            applications.reload();
+            favorites.reload();
+          }}
+        />
       )}
     </div>
   );

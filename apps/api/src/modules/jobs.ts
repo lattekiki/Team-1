@@ -12,7 +12,8 @@ const JOB_SELECT = `
   select j.*, c.slug as category_slug, c.name as category_name,
          u.username as employer_username, ep.employer_type, ep.business_name,
          (select count(*) from applications a where a.job_id = j.id and a.status <> 'withdrawn')::int as application_count,
-         ma.id as my_application_id, ma.status as my_application_status
+         ma.id as my_application_id, ma.status as my_application_status,
+         exists(select 1 from job_favorites f where f.job_id = j.id and f.user_id = $1::uuid) as saved
   from jobs j
   join job_categories c on c.id = j.category_id
   join users u on u.id = j.employer_id
@@ -56,6 +57,7 @@ export function toJobSummary(r: JobRow, viewerId: string | null, trust: WorkerTr
     isOwner,
     myApplication: r.my_application_id ? { id: r.my_application_id, status: r.my_application_status } : null,
     eligibility: trust && !isOwner ? evaluateEligibility(trust, { tier: r.tier, categoryId: r.category_id }) : null,
+    saved: Boolean(r.saved),
   };
 }
 
@@ -78,9 +80,40 @@ async function tierFor(db: Db, categoryId: number): Promise<string> {
   return rows[0].tier;
 }
 
+// Marks published jobs past their deadline (or end time) as expired. Called lazily on reads so
+// listings stay accurate without a separate cron. Jobs with active or completed pairings are left alone.
+export async function expireStaleJobs(db: Db = pool) {
+  const { rows } = await db.query(
+    `update jobs j set status = 'expired', updated_at = now()
+     where j.status = 'published'
+       and not exists (
+         select 1 from pairings p
+         where p.job_id = j.id
+           and p.status in ('pending_confirmation', 'confirmed', 'in_progress', 'completed', 'disputed')
+       )
+       and (
+         (j.application_deadline is not null and j.application_deadline < now())
+         or (j.application_deadline is null and j.ends_at is not null and j.ends_at < now())
+       )
+     returning j.id, j.title`,
+  );
+  for (const job of rows) {
+    const apps = await db.query(
+      `update applications set status = 'rejected', updated_at = now()
+       where job_id = $1 and status = 'pending' returning worker_id`,
+      [job.id],
+    );
+    for (const app of apps.rows) {
+      await notify(db, app.worker_id, "job_expired", { jobId: job.id, title: job.title });
+    }
+  }
+  return rows.length;
+}
+
 export const jobsRouter = Router();
 
 jobsRouter.get("/jobs", async (req, res) => {
+  await expireStaleJobs();
   const q = jobQuerySchema.parse(req.query);
   const viewerId = req.user?.id ?? null;
   const trust = viewerId ? await loadWorkerTrust(pool, viewerId) : null;
@@ -128,12 +161,14 @@ jobsRouter.get("/jobs", async (req, res) => {
 });
 
 jobsRouter.get("/me/jobs", requireAuth, async (req, res) => {
+  await expireStaleJobs();
   const me = currentUser(req);
   const { rows } = await pool.query(`${JOB_SELECT} where j.employer_id = $1 order by j.created_at desc`, [me.id]);
   res.json({ jobs: rows.map((r) => toJobSummary(r, me.id, null)) });
 });
 
 jobsRouter.get("/jobs/:id", async (req, res) => {
+  await expireStaleJobs();
   const viewerId = req.user?.id ?? null;
   const row = await getJobRow(pool, idParam(req), viewerId);
   if (!row) throw notFound("Job not found");
@@ -258,4 +293,35 @@ jobsRouter.post("/jobs/:id/cancel", requireAuth, async (req, res) => {
   });
   const row = await getJobRow(pool, idParam(req), me.id);
   res.json({ job: toJobSummary(row, me.id, null) });
+});
+
+jobsRouter.get("/me/favorites", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const trust = await loadWorkerTrust(pool, me.id);
+  const { rows } = await pool.query(
+    `${JOB_SELECT}
+     join job_favorites fav on fav.job_id = j.id and fav.user_id = $1::uuid
+     where ${notBlockedSql("$1::uuid", "j.employer_id")}
+     order by fav.created_at desc`,
+    [me.id],
+  );
+  res.json({ jobs: rows.map((r) => toJobSummary(r, me.id, trust)) });
+});
+
+jobsRouter.post("/jobs/:id/favorite", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const jobId = idParam(req);
+  const exists = await pool.query("select 1 from jobs where id = $1", [jobId]);
+  if (!exists.rowCount) throw notFound("Job not found");
+  await pool.query("insert into job_favorites (user_id, job_id) values ($1, $2) on conflict do nothing", [
+    me.id,
+    jobId,
+  ]);
+  res.status(204).end();
+});
+
+jobsRouter.delete("/jobs/:id/favorite", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  await pool.query("delete from job_favorites where user_id = $1 and job_id = $2", [me.id, idParam(req)]);
+  res.status(204).end();
 });

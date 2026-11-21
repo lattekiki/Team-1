@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { adminDecisionSchema, reportResolveSchema } from "@team1/shared";
+import { adminDecisionSchema, disputeResolveSchema, reportResolveSchema } from "@team1/shared";
 import { pool, withTransaction } from "../db/pool.ts";
 import { currentUser, requireRole } from "../lib/auth.ts";
 import { idParam } from "../lib/http.ts";
@@ -17,6 +17,7 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
   const { rows } = await pool.query(
     `select
        (select count(*) from reports where status in ('open', 'reviewing'))::int as open_reports,
+       (select count(*) from disputes where status = 'open')::int as open_disputes,
        (select count(*) from verification_records where status = 'pending')::int as pending_verifications,
        (select count(*) from users)::int as users,
        (select count(*) from jobs where status = 'published')::int as open_jobs,
@@ -27,6 +28,7 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
   res.json({
     overview: {
       openReports: r.open_reports,
+      openDisputes: r.open_disputes,
       pendingVerifications: r.pending_verifications,
       users: r.users,
       openJobs: r.open_jobs,
@@ -74,6 +76,91 @@ adminRouter.post("/admin/reports/:id/resolve", adminOnly, async (req, res) => {
     if (!rows[0]) throw notFound("Report not found");
     await audit(db, me.id, "report.update", { type: "report", id: idParam(req) }, body);
     await notify(db, rows[0].reporter_id, "report_updated", { reportId: idParam(req), status: body.status });
+  });
+  res.json({ ok: true });
+});
+
+adminRouter.get("/admin/disputes", staff, async (req, res) => {
+  const status = typeof req.query.status === "string" ? req.query.status : null;
+  const { rows } = await pool.query(
+    `select d.*, j.title, p.job_id, wu.username as worker_username, eu.username as employer_username,
+            ou.username as opener_username, ru.username as resolved_by_username
+     from disputes d
+     join pairings p on p.id = d.pairing_id
+     join jobs j on j.id = p.job_id
+     join users wu on wu.id = p.worker_id
+     join users eu on eu.id = p.employer_id
+     join users ou on ou.id = d.opened_by
+     left join users ru on ru.id = d.resolved_by
+     where ($1::text is null or d.status = $1)
+     order by (d.status = 'open') desc, d.created_at desc
+     limit 100`,
+    [status],
+  );
+  res.json({
+    disputes: rows.map((d) => ({
+      id: d.id,
+      pairingId: d.pairing_id,
+      jobId: d.job_id,
+      title: d.title,
+      reason: d.reason,
+      priorStatus: d.prior_status,
+      status: d.status,
+      opener: d.opener_username,
+      worker: d.worker_username,
+      employer: d.employer_username,
+      resolutionNote: d.resolution_note,
+      resolvedBy: d.resolved_by_username,
+      createdAt: d.created_at,
+      resolvedAt: d.resolved_at,
+    })),
+  });
+});
+
+adminRouter.post("/admin/disputes/:id/resolve", adminOnly, async (req, res) => {
+  const me = currentUser(req);
+  const body = disputeResolveSchema.parse(req.body);
+  await withTransaction(async (db) => {
+    const { rows } = await db.query(
+      `select d.*, p.worker_id, p.employer_id, p.job_id, j.title
+       from disputes d
+       join pairings p on p.id = d.pairing_id
+       join jobs j on j.id = p.job_id
+       where d.id = $1 for update of d`,
+      [idParam(req)],
+    );
+    const d = rows[0];
+    if (!d) throw notFound("Dispute not found");
+    if (d.status !== "open") throw conflict(`This dispute is already ${d.status}`, "dispute_already_resolved");
+
+    const nextDisputeStatus = body.resolution === "resume" ? "resolved_resume" : "resolved_cancel";
+    await db.query(
+      `update disputes set status = $2, resolution_note = $3, resolved_by = $4, resolved_at = now(), updated_at = now()
+       where id = $1`,
+      [d.id, nextDisputeStatus, body.note ?? null, me.id],
+    );
+
+    if (body.resolution === "resume") {
+      await db.query("update pairings set status = $2, updated_at = now() where id = $1", [d.pairing_id, d.prior_status]);
+    } else {
+      await db.query(
+        `update pairings set status = 'cancelled', cancelled_at = now(), cancelled_by = $2, updated_at = now()
+         where id = $1`,
+        [d.pairing_id, me.id],
+      );
+      await db.query("update jobs set status = 'published', updated_at = now() where id = $1 and status = 'filled'", [
+        d.job_id,
+      ]);
+    }
+
+    await audit(db, me.id, "dispute.resolve", { type: "dispute", id: d.id }, body);
+    const payload = {
+      pairingId: d.pairing_id,
+      title: d.title,
+      resolution: body.resolution,
+    };
+    await notify(db, d.worker_id, "dispute_resolved", payload);
+    await notify(db, d.employer_id, "dispute_resolved", payload);
   });
   res.json({ ok: true });
 });

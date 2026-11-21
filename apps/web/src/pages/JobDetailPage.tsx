@@ -5,6 +5,7 @@ import type { Applicant, JobSummary } from "@team1/shared";
 import { ApplyModal } from "../components/ApplyModal.tsx";
 import { ReportButton } from "../components/Modals.tsx";
 import { PostJobModal } from "../components/PostJobModal.tsx";
+import { SaveJobButton } from "../components/SaveJobButton.tsx";
 import { btn, container, EmptyState, ErrorBox, Rating, SectionTitle, Spinner, StatusPill, TrustTierBadge } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
@@ -149,10 +150,13 @@ export function JobDetailPage() {
       <div className={`${container} grid grid-cols-1 lg:grid-cols-3 gap-8`}>
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 sm:p-8 shadow-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <TrustTierBadge tier={j.tier} />
-              <StatusPill tone={STATUS_TONE[j.status]}>{fmt.jobStatus(j.status)}</StatusPill>
-              {j.negotiable && <StatusPill>{t("negotiablePay")}</StatusPill>}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <TrustTierBadge tier={j.tier} />
+                <StatusPill tone={STATUS_TONE[j.status]}>{fmt.jobStatus(j.status)}</StatusPill>
+                {j.negotiable && <StatusPill>{t("negotiablePay")}</StatusPill>}
+              </div>
+              {!j.isOwner && <SaveJobButton jobId={j.id} saved={j.saved} onChanged={() => job.reload()} />}
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight mt-4">{j.title}</h1>
             <p className="text-sm text-zinc-500 mt-1">

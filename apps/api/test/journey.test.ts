@@ -294,6 +294,86 @@ describe("hard rules", () => {
     await worker.agent.post("/api/users/someone/block").expect(404);
   });
 
+  it("lets either party open a dispute and an admin resume or cancel it", async () => {
+    const employer = await signUp("dispute_shop");
+    const worker = await signUp("dispute_worker");
+    const admin = await signUp("dispute_admin");
+    await pool.query("update users set role = 'admin' where id = $1", [admin.id]);
+    const job = await postJob(employer.agent, "errands", "Disputefilter errand");
+    await worker.agent
+      .post(`/api/jobs/${job}/applications`)
+      .send({ message: "I can handle this errand today without issues." })
+      .expect(201);
+    const apps = await employer.agent.get(`/api/jobs/${job}/applications`).expect(200);
+    const pairingId = (
+      await employer.agent.post(`/api/applications/${apps.body.applicants[0].id}/select`).expect(200)
+    ).body.pairingId as string;
+    await worker.agent.post(`/api/pairings/${pairingId}/accept`).expect(200);
+    await worker.agent.post(`/api/pairings/${pairingId}/start`).expect(200);
+
+    const disputed = await worker.agent
+      .post(`/api/pairings/${pairingId}/dispute`)
+      .send({ reason: "Employer asked for unpaid extra hours beyond the agreement." })
+      .expect(200);
+    expect(disputed.body.pairing.status).toBe("disputed");
+    expect(disputed.body.pairing.dispute.status).toBe("open");
+    expect(disputed.body.pairing.contact).toEqual({ phone: employer.phone });
+
+    const list = await admin.agent.get("/api/admin/disputes").expect(200);
+    const dispute = list.body.disputes.find((d: { pairingId: string }) => d.pairingId === pairingId);
+    expect(dispute).toBeTruthy();
+
+    await admin.agent
+      .post(`/api/admin/disputes/${dispute.id}/resolve`)
+      .send({ resolution: "resume", note: "Continue under the original terms." })
+      .expect(200);
+    expect((await worker.agent.get(`/api/pairings/${pairingId}`).expect(200)).body.pairing.status).toBe("in_progress");
+  });
+
+  it("expires published jobs past their end time and rejects pending applications", async () => {
+    const employer = await signUp("expire_shop");
+    const worker = await signUp("expire_worker");
+    const job = await postJob(employer.agent, "errands", "Expirefilter past errand");
+    await worker.agent
+      .post(`/api/jobs/${job}/applications`)
+      .send({ message: "I can help with this errand today." })
+      .expect(201);
+    // Force the job into the past without an application deadline so expireStaleJobs uses ends_at.
+    await pool.query(
+      `update jobs set starts_at = now() - interval '2 days', ends_at = now() - interval '1 day',
+       application_deadline = null where id = $1`,
+      [job],
+    );
+
+    const list = await request(app).get("/api/jobs").query({ q: "Expirefilter" }).expect(200);
+    expect(list.body.jobs.map((j: { id: string }) => j.id)).not.toContain(job);
+    expect((await employer.agent.get(`/api/jobs/${job}`).expect(200)).body.job.status).toBe("expired");
+    expect((await worker.agent.get("/api/me/applications").expect(200)).body.applications[0].status).toBe("rejected");
+    await worker.agent
+      .post(`/api/jobs/${job}/applications`)
+      .send({ message: "Trying again after expiry." })
+      .expect(409);
+  });
+
+  it("lets a worker save and unsave jobs", async () => {
+    const employer = await signUp("saved_jobs_shop");
+    const worker = await signUp("saved_jobs_worker");
+    const job = await postJob(employer.agent, "errands", "Savefilter errand");
+    expect((await worker.agent.get(`/api/jobs/${job}`).expect(200)).body.job.saved).toBe(false);
+
+    await worker.agent.post(`/api/jobs/${job}/favorite`).expect(204);
+    await worker.agent.post(`/api/jobs/${job}/favorite`).expect(204); // idempotent
+    expect((await worker.agent.get(`/api/jobs/${job}`).expect(200)).body.job.saved).toBe(true);
+    expect((await worker.agent.get("/api/me/favorites").expect(200)).body.jobs.map((j: { id: string }) => j.id)).toEqual([
+      job,
+    ]);
+
+    await worker.agent.delete(`/api/jobs/${job}/favorite`).expect(204);
+    expect((await worker.agent.get(`/api/jobs/${job}`).expect(200)).body.job.saved).toBe(false);
+    expect((await worker.agent.get("/api/me/favorites").expect(200)).body.jobs).toEqual([]);
+    await worker.agent.post("/api/jobs/00000000-0000-4000-8000-000000000099/favorite").expect(404);
+  });
+
   it("does not let employers apply to their own jobs", async () => {
     const employer = await signUp("self_applier");
     const job = await postJob(employer.agent, "errands", "Deliver documents");

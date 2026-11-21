@@ -2,7 +2,7 @@ import { CheckCircle2, Clock, Lock, MapPin, Phone, RefreshCw, Star, Unlock } fro
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import type { Pairing } from "@team1/shared";
-import { RebookModal, ReportButton, ReviewModal } from "../components/Modals.tsx";
+import { DisputeButton, RebookModal, ReportButton, ReviewModal } from "../components/Modals.tsx";
 import { btn, container, ErrorBox, Spinner, StatusPill, TrustTierBadge } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
 import { useI18n } from "../lib/i18n.tsx";
@@ -221,7 +221,28 @@ export function PairingPage() {
 
             {p.status === "completed" && p.myReview && isWorker && <p className="text-xs text-zinc-500">{t("allDone")}</p>}
 
-            {!active && <p className="text-xs text-zinc-500">{t("pairingStatusNote", { status: fmt.pairingStatus(p.status) })}</p>}
+            {p.status === "disputed" && p.dispute && (
+              <div className="space-y-2 text-xs text-amber-900">
+                <p className="font-semibold">{p.dispute.openedByMe ? t("disputeOpenedByYou") : t("disputeOpenedByOther")}</p>
+                <p className="text-zinc-700">“{p.dispute.reason}”</p>
+                {p.dispute.status === "open" ? (
+                  <p className="text-zinc-500">{t("disputeWaitingStaff")}</p>
+                ) : (
+                  <>
+                    <p className="text-zinc-500">
+                      {t("disputeResolvedNote", { outcome: fmt.disputeStatus(p.dispute.status) })}
+                    </p>
+                    {p.dispute.resolutionNote && (
+                      <p className="text-zinc-500">{t("noteText", { note: p.dispute.resolutionNote })}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {!active && p.status !== "disputed" && (
+              <p className="text-xs text-zinc-500">{t("pairingStatusNote", { status: fmt.pairingStatus(p.status) })}</p>
+            )}
 
             {(p.status === "pending_confirmation" || p.status === "confirmed") && (
               <button
@@ -231,6 +252,10 @@ export function PairingPage() {
               >
                 {t("cancelPairing")}
               </button>
+            )}
+
+            {["pending_confirmation", "confirmed", "in_progress"].includes(p.status) && (
+              <DisputeButton pairingId={p.id} onDone={res.reload} />
             )}
           </div>
 

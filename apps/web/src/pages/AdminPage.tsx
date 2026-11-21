@@ -1,4 +1,4 @@
-import { Flag, ScrollText, Search, ShieldCheck, Users } from "lucide-react";
+import { Flag, Scale, ScrollText, Search, ShieldCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import type { Role, VerificationKind } from "@team1/shared";
@@ -12,6 +12,7 @@ import { useAction, useApi } from "../lib/useApi.ts";
 
 type Overview = {
   openReports: number;
+  openDisputes: number;
   pendingVerifications: number;
   users: number;
   openJobs: number;
@@ -41,6 +42,22 @@ type ReportRow = {
   resolutionNote: string | null;
   resolvedBy: string | null;
   createdAt: string;
+};
+type DisputeRow = {
+  id: string;
+  pairingId: string;
+  jobId: string;
+  title: string;
+  reason: string;
+  priorStatus: string;
+  status: "open" | "resolved_resume" | "resolved_cancel";
+  opener: string;
+  worker: string;
+  employer: string;
+  resolutionNote: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
 };
 type UserRow = {
   id: string;
@@ -204,6 +221,72 @@ function ReportsQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged:
   );
 }
 
+function DisputesQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged: () => void }) {
+  const { t, fmt } = useI18n();
+  const toast = useToast();
+  const { busy, run } = useAction();
+  const res = useApi<{ disputes: DisputeRow[] }>("/admin/disputes");
+
+  const resolve = async (d: DisputeRow, resolution: "resume" | "cancel") => {
+    const note = prompt(t("resolvePrompt")) ?? undefined;
+    const ok = await run(
+      () => api(`/admin/disputes/${d.id}/resolve`, { body: { resolution, note } }),
+      (m) => toast(m, "error"),
+    );
+    if (ok) {
+      toast(
+        t("toastDisputeResolved", {
+          outcome: fmt.disputeStatus(resolution === "resume" ? "resolved_resume" : "resolved_cancel"),
+        }),
+      );
+      res.reload();
+      onChanged();
+    }
+  };
+
+  if (res.loading && !res.data) return <Spinner />;
+  if (!res.data?.disputes.length) return <EmptyState icon={Scale} title={t("noDisputes")} />;
+  return (
+    <div className="space-y-3">
+      {res.data.disputes.map((d) => {
+        const open = d.status === "open";
+        return (
+          <div key={d.id} className={`p-5 rounded-2xl border ${open ? "bg-white border-zinc-200" : "bg-zinc-50 border-zinc-100"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-zinc-500">
+                <strong className="text-zinc-800">{t("disputedBy", { username: d.opener })}</strong> •{" "}
+                <Link to={`/pairings/${d.pairingId}`} className="underline font-semibold">
+                  {d.title}
+                </Link>{" "}
+                • {t("disputeParties", { worker: d.worker, employer: d.employer })} • {fmt.timeAgo(d.createdAt)}
+              </p>
+              <StatusPill tone={open ? "bad" : "neutral"}>{fmt.disputeStatus(d.status)}</StatusPill>
+            </div>
+            <p className="text-sm text-zinc-800 mt-2">{d.reason}</p>
+            {d.resolutionNote && (
+              <p className="text-xs text-zinc-500 mt-1">
+                {d.resolvedBy
+                  ? t("noteBy", { username: d.resolvedBy, note: d.resolutionNote })
+                  : t("noteText", { note: d.resolutionNote })}
+              </p>
+            )}
+            {canDecide && open && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button disabled={busy} onClick={() => resolve(d, "resume")} className={btn.primary}>
+                  {t("resumePairing")}
+                </button>
+                <button disabled={busy} onClick={() => resolve(d, "cancel")} className={btn.danger}>
+                  {t("cancelViaDispute")}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function UsersPanel({ canDecide, myId }: { canDecide: boolean; myId: string }) {
   const { t, fmt } = useI18n();
   const toast = useToast();
@@ -341,7 +424,7 @@ function AuditLog() {
   );
 }
 
-type Tab = "verification" | "reports" | "users" | "audit";
+type Tab = "verification" | "reports" | "disputes" | "users" | "audit";
 
 export function AdminPage() {
   const { user } = useAuth();
@@ -355,12 +438,14 @@ export function AdminPage() {
   const tabs: { id: Tab; label: string; icon: typeof Users; count?: number }[] = [
     { id: "verification", label: t("tabVerification"), icon: ShieldCheck, count: o?.pendingVerifications },
     { id: "reports", label: t("tabReports"), icon: Flag, count: o?.openReports },
+    { id: "disputes", label: t("tabDisputes"), icon: Scale, count: o?.openDisputes },
     { id: "users", label: t("tabUsers"), icon: Users },
     ...(isAdmin ? [{ id: "audit" as const, label: t("tabAudit"), icon: ScrollText }] : []),
   ];
   const stats: [string, number | undefined][] = [
     [t("adminPendingVerif"), o?.pendingVerifications],
     [t("adminOpenReports"), o?.openReports],
+    [t("adminOpenDisputes"), o?.openDisputes],
     [t("adminUsers"), o?.users],
     [t("adminOpenJobs"), o?.openJobs],
     [t("adminActivePairings"), o?.activePairings],
@@ -375,7 +460,7 @@ export function AdminPage() {
           <p className="text-sm text-zinc-500 mt-1">{isAdmin ? t("adminSubtitleAdmin") : t("adminSubtitleSupport")}</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {stats.map(([label, value]) => (
             <div key={label} className="p-4 rounded-2xl bg-white border border-zinc-200">
               <p className="text-2xl font-extrabold">{value ?? "–"}</p>
@@ -402,6 +487,7 @@ export function AdminPage() {
 
         {tab === "verification" && <VerificationQueue canDecide={isAdmin} onChanged={overview.reload} />}
         {tab === "reports" && <ReportsQueue canDecide={isAdmin} onChanged={overview.reload} />}
+        {tab === "disputes" && <DisputesQueue canDecide={isAdmin} onChanged={overview.reload} />}
         {tab === "users" && <UsersPanel canDecide={isAdmin} myId={user.id} />}
         {tab === "audit" && isAdmin && <AuditLog />}
       </div>

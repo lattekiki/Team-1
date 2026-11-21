@@ -21,7 +21,7 @@ export const PAIRING_STATUSES = [
   "cancelled",
   "disputed",
 ] as const;
-export const CONTACT_VISIBLE_PAIRING_STATUSES = ["confirmed", "in_progress", "completed"] as const;
+export const CONTACT_VISIBLE_PAIRING_STATUSES = ["confirmed", "in_progress", "completed", "disputed"] as const;
 
 export const JIMMA_AREAS = [
   { id: "Kochi", am: "ኮቺ" },
@@ -172,6 +172,15 @@ export const reportCreateSchema = z.object({
   reason: z.string().trim().min(5).max(2000),
 });
 
+export const disputeCreateSchema = z.object({
+  reason: z.string().trim().min(5, "Describe what went wrong").max(2000),
+});
+
+export const disputeResolveSchema = z.object({
+  resolution: z.enum(["resume", "cancel"]),
+  note: z.string().trim().max(1000).optional(),
+});
+
 export const verificationCreateSchema = z.object({
   kind: z.enum(VERIFICATION_KINDS),
   note: z.string().trim().min(5, "Describe what you can provide (ID type, certificate, references)").max(2000),
@@ -235,6 +244,8 @@ export type JobSummary = {
   isOwner: boolean;
   myApplication: { id: string; status: ApplicationStatus } | null;
   eligibility: Eligibility | null;
+  /** True when the signed-in viewer has saved this job. */
+  saved: boolean;
 };
 
 export type Applicant = {
@@ -293,6 +304,14 @@ export type Pairing = {
   myReview: { overall: number; body: string } | null;
   theirReview: { overall: number; body: string } | null;
   rebooking: { id: string; status: string } | null;
+  dispute: {
+    id: string;
+    reason: string;
+    status: "open" | "resolved_resume" | "resolved_cancel";
+    openedByMe: boolean;
+    openedAt: string;
+    resolutionNote: string | null;
+  } | null;
 };
 
 export type Rebooking = {

@@ -35,6 +35,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - Seed data + automated API test of the DoD journey (§35)
 - English, Afaan Oromoo and Amharic UI (typed dictionaries in `apps/web/src/lib/locales`; API errors carry stable codes the client translates)
 - Block user: either side can block; blocked pairs are hidden from job browse/applicant lists and cannot apply, select, or rebook each other; pending applications between them are withdrawn/rejected; unblock from the public profile or the blocked list on `/profile`
+- Saved jobs (favorites): bookmark on job cards and job detail; list under worker dashboard (`GET /me/favorites`)
 
 ### Stubbed (interface exists, no real provider)
 - **OTP/SMS**: `OtpProvider` interface, `ConsoleOtpProvider` implementation
@@ -42,7 +43,10 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - **File uploads**: verification takes a text note/reference only; no identity documents stored yet
 
 ### Deferred (Phase 2+)
-Real SMS, payment provider, document upload storage, distance/map search, disputes workflow, support tickets, favorites, business/bulk jobs, all AI features, push/SMS notifications.
+Real SMS, payment provider, document upload storage, distance/map search, support tickets, business/bulk jobs, all AI features, push/SMS notifications.
+
+### Added after MVP journey
+- **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
 
 ## 3. Repo layout
 
@@ -88,11 +92,11 @@ docs/PLAN.md
 
 ## 5. Status machines
 
-**Job**: `draft → published → filled | cancelled | expired`. A job becomes `filled` when it has `workers_needed` confirmed pairings.
+**Job**: `draft → published → filled | cancelled | expired`. A job becomes `filled` when it has `workers_needed` confirmed pairings. Published jobs with no active pairing are marked `expired` (lazily on browse/detail/apply) when `application_deadline` or, if none, `ends_at` is in the past; pending applications are rejected and applicants notified.
 
 **Application**: `pending → selected | rejected | withdrawn`. `selected` creates a pairing in `pending_confirmation`.
 
-**Pairing**: `pending_confirmation → confirmed → in_progress → completed`; `pending_confirmation → declined`; any active state → `cancelled` or `disputed`. Moving to `completed` requires both `employer_completed_at` and `worker_completed_at`.
+**Pairing**: `pending_confirmation → confirmed → in_progress → completed`; `pending_confirmation → declined`; any active state → `cancelled` or `disputed`. Either party can open a dispute (reason required); staff resume to the prior status or cancel. Moving to `completed` requires both `employer_completed_at` and `worker_completed_at`.
 
 ## 6. Hard rules (enforced in the API, covered by tests)
 

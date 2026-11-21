@@ -4,9 +4,20 @@ import type { JobSummary } from "@team1/shared";
 import { useAuth } from "../lib/auth.tsx";
 import { initials } from "../lib/format.ts";
 import { useI18n } from "../lib/i18n.tsx";
+import { SaveJobButton } from "./SaveJobButton.tsx";
 import { TrustTierBadge } from "./ui.tsx";
 
-export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?: boolean; onApply: (job: JobSummary) => void }) {
+export function JobCard({
+  job,
+  dark = false,
+  onApply,
+  onSavedChange,
+}: {
+  job: JobSummary;
+  dark?: boolean;
+  onApply: (job: JobSummary) => void;
+  onSavedChange?: (jobId: string, saved: boolean) => void;
+}) {
   const { user } = useAuth();
   const { t, tp, fmt } = useI18n();
   const navigate = useNavigate();
@@ -123,7 +134,17 @@ export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?
           {tp("applicants", job.applicationCount)}
           {job.publishedAt && ` • ${fmt.timeAgo(job.publishedAt)}`}
         </span>
-        {action}
+        <div className="flex items-center gap-2">
+          {!job.isOwner && (
+            <SaveJobButton
+              jobId={job.id}
+              saved={job.saved}
+              dark={dark}
+              onChanged={(saved) => onSavedChange?.(job.id, saved)}
+            />
+          )}
+          {action}
+        </div>
       </div>
     </div>
   );

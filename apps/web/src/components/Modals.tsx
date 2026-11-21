@@ -228,3 +228,60 @@ export function ReportButton({
     </>
   );
 }
+
+export function DisputeButton({ pairingId, onDone }: { pairingId: string; onDone: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const { busy, run } = useAction();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const ok = await run(() => api(`/pairings/${pairingId}/dispute`, { body: { reason } }), setError);
+    if (ok) {
+      toast(t("toastDisputeOpened"));
+      setOpen(false);
+      setReason("");
+      onDone();
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-[11px] font-bold text-amber-800 hover:underline"
+      >
+        {t("openDispute")}
+      </button>
+      {open && (
+        <Modal title={t("disputeTitle")} eyebrow={t("disputeEyebrow")} onClose={() => setOpen(false)}>
+          <p className="text-xs text-zinc-500 mt-1">{t("disputeHint")}</p>
+          <form onSubmit={submit} className="mt-4 space-y-3">
+            <textarea
+              required
+              minLength={5}
+              rows={4}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t("disputePlaceholder")}
+              className={field.textarea}
+              aria-label={t("disputeAria")}
+            />
+            {error && <ErrorBox message={error} />}
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setOpen(false)} className={btn.ghost}>
+                {t("cancel")}
+              </button>
+              <button type="submit" disabled={busy} className={btn.danger}>
+                {t("disputeSend")}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
+}

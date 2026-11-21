@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   CONTACT_VISIBLE_PAIRING_STATUSES,
+  disputeCreateSchema,
   rebookSchema,
   reviewCreateSchema,
   type Pairing,
@@ -20,7 +21,10 @@ const PAIRING_SELECT = `
          j.payment_terms, j.workers_needed, c.name as category_name, c.slug as category_slug,
          wu.username as worker_username, wu.phone as worker_phone,
          eu.username as employer_username, eu.phone as employer_phone,
-         a.proposed_pay, rb.id as rebooking_id, rb.status as rebooking_status
+         a.proposed_pay, rb.id as rebooking_id, rb.status as rebooking_status,
+         d.id as dispute_id, d.reason as dispute_reason, d.status as dispute_status,
+         d.opened_by as dispute_opened_by, d.created_at as dispute_opened_at,
+         d.resolution_note as dispute_resolution_note
   from pairings p
   join jobs j on j.id = p.job_id
   join job_categories c on c.id = j.category_id
@@ -29,7 +33,11 @@ const PAIRING_SELECT = `
   left join applications a on a.id = p.application_id
   left join lateral (
     select id, status from rebookings where original_pairing_id = p.id order by created_at desc limit 1
-  ) rb on true`;
+  ) rb on true
+  left join lateral (
+    select id, reason, status, opened_by, created_at, resolution_note
+    from disputes where pairing_id = p.id order by created_at desc limit 1
+  ) d on true`;
 
 type Row = Record<string, any>;
 type ReviewRow = { pairing_id: string; reviewer_id: string; overall: number; body: string };
@@ -72,6 +80,16 @@ function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
     myReview: mine ? { overall: mine.overall, body: mine.body } : null,
     theirReview: theirs ? { overall: theirs.overall, body: theirs.body } : null,
     rebooking: r.rebooking_id ? { id: r.rebooking_id, status: r.rebooking_status } : null,
+    dispute: r.dispute_id
+      ? {
+          id: r.dispute_id,
+          reason: r.dispute_reason,
+          status: r.dispute_status,
+          openedByMe: r.dispute_opened_by === viewerId,
+          openedAt: r.dispute_opened_at,
+          resolutionNote: r.dispute_resolution_note,
+        }
+      : null,
   };
 }
 
@@ -250,6 +268,31 @@ pairingsRouter.post("/pairings/:id/cancel", requireAuth, async (req, res) => {
       p.job_id,
     ]);
     await notify(db, otherParty(p, me.id), "pairing_cancelled", { pairingId: p.id, title: p.title });
+  });
+  await respond(res, idParam(req), me);
+});
+
+pairingsRouter.post("/pairings/:id/dispute", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const body = disputeCreateSchema.parse(req.body);
+  await withTransaction(async (db) => {
+    const p = await loadPairing(db, idParam(req), me, true);
+    assertParty(p, me.id);
+    assertStatus(p, ["pending_confirmation", "confirmed", "in_progress"], "dispute");
+    const open = await db.query("select 1 from disputes where pairing_id = $1 and status = 'open'", [p.id]);
+    if (open.rowCount) throw conflict("This pairing already has an open dispute", "dispute_already_open");
+
+    await db.query(
+      `insert into disputes (pairing_id, opened_by, reason, prior_status)
+       values ($1, $2, $3, $4)`,
+      [p.id, me.id, body.reason, p.status],
+    );
+    await db.query("update pairings set status = 'disputed', updated_at = now() where id = $1", [p.id]);
+    await notify(db, otherParty(p, me.id), "pairing_disputed", {
+      pairingId: p.id,
+      title: p.title,
+      opener: me.username,
+    });
   });
   await respond(res, idParam(req), me);
 });

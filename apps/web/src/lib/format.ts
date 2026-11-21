@@ -59,6 +59,7 @@ export function makeFormatters(lang: Language, { t, tp, tx }: { t: Translate; tp
     verifStatus: (s: string) => tx(`verifStatus_${s}`, s),
     reportStatus: (s: string) => tx(`reportStatus_${s}`, s),
     reportTarget: (s: string) => tx(`reportTarget_${s}`, s),
+    disputeStatus: (s: string) => tx(`disputeStatus_${s}`, s),
     role: (r: Role) => t(`role_${r}`),
     category: (slug: string, fallback: string) => tx(`cat_${slug}`, fallback),
     skill: (slug: string, fallback: string) => tx(`skill_${slug}`, fallback),
@@ -106,9 +107,11 @@ export function makeFormatters(lang: Language, { t, tp, tx }: { t: Translate; tp
         title: p.title ? `“${p.title}”` : t("notifYourJob"),
         worker: String(p.worker ?? ""),
         employer: String(p.employer ?? ""),
+        opener: String(p.opener ?? ""),
         stars: String(p.overall ?? ""),
         kind: p.kind ? fmt.verifKind(p.kind as VerificationKind) : "",
         status: p.kind ? fmt.verifStatus(String(p.status)) : fmt.reportStatus(String(p.status ?? "")),
+        resolution: p.resolution ? tx(`disputeResolution_${p.resolution}`, String(p.resolution)) : "",
       };
       const pairing = p.pairingId ? `/pairings/${p.pairingId}` : null;
       const job = p.jobId ? `/jobs/${p.jobId}` : null;
@@ -116,6 +119,9 @@ export function makeFormatters(lang: Language, { t, tp, tx }: { t: Translate; tp
         application_received: job,
         not_selected: job,
         job_cancelled: job,
+        job_expired: job,
+        pairing_disputed: pairing,
+        dispute_resolved: pairing,
         rebook_request: "/dashboard",
         rebook_declined: "/dashboard",
         verification_updated: "/profile",
