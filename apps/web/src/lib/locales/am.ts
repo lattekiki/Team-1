@@ -738,6 +738,7 @@ export const am: Messages = {
   err_job_closed: "ይህ ሥራ ከእንግዲህ ማመልከቻ አይቀበልም።",
   err_private_job: "ይህ የግል የድጋሚ ቅጥር ጥያቄ ነው።",
   err_own_job: "ለራስዎ ሥራ ማመልከት አይችሉም።",
+  err_vip_categories_disabled: "የቤት እና የህፃናት እንክብካቤ ሥራዎች ጥበቃ እስኪረጋገጥ ድረስ ቆመዋል።",
   err_deadline_passed: "የማመልከቻ ጊዜው አልፏል።",
   err_no_pay_proposals: "ይህ ሥራ የክፍያ ሐሳብ አይቀበልም።",
   err_already_applied: "ለዚህ ሥራ ቀድመው አመልክተዋል።",

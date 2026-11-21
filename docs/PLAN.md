@@ -60,6 +60,7 @@ None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
 - **Matching**: explainable job recommendations for workers (`GET /me/recommended-jobs`); applicant fit hints (skills/area/similar work — **never hides zero-review workers**); `POST /jobs/suggest` category from title keywords.
 - **Generative match blurbs**: rule-based one-liners always; when `LLM_PROVIDER=openai`, an optional batch call may reorder **already-eligible** jobs/applicants and rewrite blurbs — never drops ids, never uses rating as VIP eligibility.
 - **Writing assist**: `POST /assist` drafts job descriptions and apply pitches. `LLM_PROVIDER=template` (default, no API) or `openai` (OpenAI-compatible; falls back to template). `off` hides the buttons.
+- **VIP production gate**: `VIP_CATEGORIES` unset means household/childcare (`vip`) categories are hidden and cannot be posted or applied to when `NODE_ENV=production`.
 
 ## 3. Repo layout
 
@@ -171,4 +172,4 @@ If time runs short, cut in this order: rebooking UI (keep API) → admin audit v
 - Pick a payment provider and decide fee, cancellation, no-show, and refund rules.
 - Confirm pilot categories and neighborhoods with worker/employer interviews.
 - Get Amharic and Afaan Oromoo translations reviewed by native speakers.
-- Keep VIP/child-related categories **disabled in production** until safeguarding requirements are confirmed.
+- Keep VIP/child-related categories **disabled in production** until safeguarding requirements are confirmed. The API does this with `VIP_CATEGORIES` (unset = off in production, on in dev/test). Browse, apply, post, and category lists hide `vip` while it is off.

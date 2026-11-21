@@ -16,6 +16,7 @@ import { idParam } from "../lib/http.ts";
 import { evaluateEligibility, loadWorkerTrust, type WorkerTrust } from "../lib/eligibility.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
+import { assertVipCategoriesOpen, vipCategoriesEnabled } from "../lib/pilot.ts";
 import { narrateMatches } from "../lib/match-narrate.ts";
 import { loadWorkerMatchProfile, scoreJobForWorker, suggestCategorySlugs, templateMatchBlurb } from "../lib/matching.ts";
 
@@ -94,6 +95,7 @@ async function ownedJob(db: Db, jobId: string, userId: string, lock = false) {
 async function tierFor(db: Db, categoryId: number): Promise<string> {
   const { rows } = await db.query("select tier from job_categories where id = $1 and active", [categoryId]);
   if (!rows[0]) throw badRequest("Unknown job category");
+  assertVipCategoriesOpen(rows[0].tier);
   return rows[0].tier;
 }
 
@@ -140,6 +142,7 @@ jobsRouter.get("/jobs", async (req, res) => {
     "j.status = 'published'",
     "j.invited_worker_id is null",
     "(j.application_deadline is null or j.application_deadline > now())",
+    ...(vipCategoriesEnabled ? [] : ["j.tier <> 'vip'"]),
     // $1 is the viewer (null when signed out, which matches no block rows).
     notBlockedSql("$1::uuid", "j.employer_id"),
   ];
@@ -216,6 +219,7 @@ jobsRouter.get("/me/recommended-jobs", requireAuth, async (req, res) => {
     `${JOB_SELECT}
      where j.status = 'published'
        and j.invited_worker_id is null
+       ${vipCategoriesEnabled ? "" : "and j.tier <> 'vip'"}
        and j.employer_id <> $1
        and (j.application_deadline is null or j.application_deadline > now())
        and ${notBlockedSql("$1::uuid", "j.employer_id")}
@@ -266,6 +270,7 @@ jobsRouter.post("/jobs/suggest", requireAuth, async (req, res) => {
   );
   const bySlug = new Map(rows.map((c) => [c.slug as string, c]));
   const suggestions = ranked
+    .filter((r) => vipCategoriesEnabled || bySlug.get(r.slug)?.tier !== "vip")
     .map((r) => {
       const c = bySlug.get(r.slug);
       if (!c) return null;
@@ -287,6 +292,9 @@ jobsRouter.get("/jobs/:id", async (req, res) => {
     row.my_application_id ||
     (row.status !== "draft" && (row.invited_worker_id == null || row.invited_worker_id === viewerId));
   if (!canSee) throw notFound("Job not found");
+  if (row.tier === "vip" && !vipCategoriesEnabled && row.employer_id !== viewerId && req.user?.role !== "admin") {
+    throw notFound("Job not found");
+  }
   const trust = viewerId ? await loadWorkerTrust(pool, viewerId) : null;
   const job = toJobSummary(row, viewerId, trust);
   if (viewerId && trust && row.employer_id !== viewerId) {

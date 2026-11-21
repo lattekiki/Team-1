@@ -12,6 +12,7 @@ import { pool, withTransaction } from "../db/pool.ts";
 import { currentUser, requireAuth } from "../lib/auth.ts";
 import { badRequest, conflict, notFound } from "../lib/errors.ts";
 import { reputationFor } from "../lib/stats.ts";
+import { vipCategoriesEnabled } from "../lib/pilot.ts";
 import { loadMe } from "./auth.ts";
 
 export const profilesRouter = Router();
@@ -196,13 +197,15 @@ profilesRouter.get("/categories", async (_req, res) => {
               where j.category_id = c.id and j.status = 'published' and j.invited_worker_id is null)::int as open_jobs
      from job_categories c where c.active order by c.id`,
   );
-  const categories: Category[] = rows.map((c) => ({
-    id: c.id,
-    slug: c.slug,
-    name: c.name,
-    tier: c.tier,
-    openJobs: c.open_jobs,
-  }));
+  const categories: Category[] = rows
+    .filter((c) => vipCategoriesEnabled || c.tier !== "vip")
+    .map((c) => ({
+      id: c.id,
+      slug: c.slug,
+      name: c.name,
+      tier: c.tier,
+      openJobs: c.open_jobs,
+    }));
   res.json({ categories });
 });
 

@@ -56,6 +56,12 @@ const envSchema = z
     NOTIFY_SMS: boolish,
 
     /**
+     * VIP / childcare categories. Unset: on outside production, off in production.
+     * on | off overrides that.
+     */
+    VIP_CATEGORIES: z.enum(["on", "off"]).optional(),
+
+    /**
      * off — hide writing assist.
      * template (default) — local drafts, no external API.
      * openai — OpenAI-compatible Chat Completions (set LLM_API_KEY).

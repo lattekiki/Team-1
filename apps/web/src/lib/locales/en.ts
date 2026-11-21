@@ -762,6 +762,7 @@ export const en = {
   err_job_closed: "This job is no longer accepting applications.",
   err_private_job: "This is a private rebooking request.",
   err_own_job: "You cannot apply to your own job.",
+  err_vip_categories_disabled: "Household and childcare jobs are paused until safeguarding is confirmed.",
   err_deadline_passed: "The application deadline has passed.",
   err_no_pay_proposals: "This job does not accept pay proposals.",
   err_already_applied: "You already applied to this job.",

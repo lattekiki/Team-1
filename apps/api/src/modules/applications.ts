@@ -11,6 +11,7 @@ import { initialPaymentStatus, recordPaymentEvent } from "../lib/payments.ts";
 import { narrateMatches } from "../lib/match-narrate.ts";
 import { scoreApplicantForJob, templateMatchBlurb } from "../lib/matching.ts";
 import { reputationFor } from "../lib/stats.ts";
+import { assertVipCategoriesOpen } from "../lib/pilot.ts";
 import { expireStaleJobs } from "./jobs.ts";
 
 const ACTIVE_PAIRING = "('pending_confirmation', 'confirmed', 'in_progress', 'completed')";
@@ -40,6 +41,7 @@ applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) 
     if (job.status !== "published") throw conflict("This job is no longer accepting applications", "job_closed");
     if (job.invited_worker_id) throw conflict("This is a private rebooking request", "private_job");
     if (job.employer_id === me.id) throw forbidden("You cannot apply to your own job", "own_job");
+    assertVipCategoriesOpen(job.tier);
     await assertNotBlocked(db, me.id, job.employer_id);
     if (job.application_deadline && new Date(job.application_deadline) < new Date()) {
       throw conflict("The application deadline has passed", "deadline_passed");

@@ -748,6 +748,7 @@ export const om: Messages = {
   err_job_closed: "Hojiin kun iyyannoo hin fudhatu.",
   err_private_job: "Kun gaaffii irra deebiin qacaruu dhuunfaa dha.",
   err_own_job: "Hojii mataa keetii iyyachuu hin dandeessu.",
+  err_vip_categories_disabled: "Hojiiwwan mana fi kunuunsa daa'immaa eegumsa mirkanaa'utti dhaabbatanii jiru.",
   err_deadline_passed: "Yeroon iyyannoo darbeera.",
   err_no_pay_proposals: "Hojiin kun yaada kaffaltii hin fudhatu.",
   err_already_applied: "Hojii kana duraan iyyatteetta.",

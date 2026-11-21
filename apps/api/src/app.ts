@@ -18,6 +18,7 @@ import { assistConfig } from "./lib/llm.ts";
 import { otpProvider } from "./lib/otp.ts";
 import { objectStore } from "./lib/storage.ts";
 import { pushConfigured } from "./lib/push.ts";
+import { vipCategoriesEnabled } from "./lib/pilot.ts";
 import { env } from "./env.ts";
 
 export function createApp() {
@@ -58,6 +59,7 @@ export function createApp() {
       push: pushConfigured,
       notifySms: Boolean(env.NOTIFY_SMS),
       assist: assistConfig(),
+      vipCategories: vipCategoriesEnabled,
     });
   });
 
