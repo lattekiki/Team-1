@@ -6,12 +6,11 @@ import { ApplyModal } from "../components/ApplyModal.tsx";
 import { HeroIllustration, HowItWorksIllustration } from "../components/Illustrations.tsx";
 import { JobCard } from "../components/JobCard.tsx";
 import { CategoryIcon, container } from "../components/ui.tsx";
-import { TIER_LABEL } from "../lib/format.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { useApi } from "../lib/useApi.ts";
 
 export function HomePage() {
-  const { t } = useI18n();
+  const { t, tp, fmt } = useI18n();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [area, setArea] = useState("");
@@ -87,7 +86,7 @@ export function HomePage() {
                         <option value="">{t("locationAll")}</option>
                         {JIMMA_AREAS.map((a) => (
                           <option key={a.id} value={a.id}>
-                            {a.id} ({a.am})
+                            {fmt.area(a.id)}
                           </option>
                         ))}
                       </select>
@@ -142,13 +141,13 @@ export function HomePage() {
                   <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-4 bg-zinc-100 text-zinc-900 group-hover:bg-zinc-900 group-hover:text-white transition-colors">
                     <CategoryIcon slug={cat.slug} className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-sm leading-snug">{cat.name}</h3>
+                  <h3 className="font-bold text-sm leading-snug">{fmt.category(cat.slug, cat.name)}</h3>
                   <p className={`text-[11px] mt-1.5 font-semibold ${cat.tier === "vip" ? "text-amber-700" : "text-zinc-500"}`}>
-                    {TIER_LABEL[cat.tier]}
+                    {fmt.tier(cat.tier)}
                   </p>
                 </div>
                 <span className="pt-4 text-[11px] font-semibold text-zinc-400 group-hover:text-zinc-900 transition-colors">
-                  {cat.openJobs} {t("openJobs")} →
+                  {tp("openJobs", cat.openJobs)} →
                 </span>
               </Link>
             ))}

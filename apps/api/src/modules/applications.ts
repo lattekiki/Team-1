@@ -3,8 +3,8 @@ import { applicationCreateSchema, type Applicant, type MyApplication } from "@te
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth } from "../lib/auth.ts";
 import { idParam } from "../lib/http.ts";
-import { checkEligibility } from "../lib/eligibility.ts";
-import { AppError, conflict, forbidden, notFound } from "../lib/errors.ts";
+import { checkEligibility, notEligible } from "../lib/eligibility.ts";
+import { conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
 import { reputationFor } from "../lib/stats.ts";
 
@@ -31,16 +31,18 @@ applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) 
     const { rows } = await db.query("select * from jobs where id = $1 for share", [idParam(req)]);
     const job = rows[0];
     if (!job || job.status === "draft") throw notFound("Job not found");
-    if (job.status !== "published") throw conflict("This job is no longer accepting applications");
-    if (job.invited_worker_id) throw conflict("This is a private rebooking request");
-    if (job.employer_id === me.id) throw forbidden("You cannot apply to your own job");
+    if (job.status !== "published") throw conflict("This job is no longer accepting applications", "job_closed");
+    if (job.invited_worker_id) throw conflict("This is a private rebooking request", "private_job");
+    if (job.employer_id === me.id) throw forbidden("You cannot apply to your own job", "own_job");
     if (job.application_deadline && new Date(job.application_deadline) < new Date()) {
-      throw conflict("The application deadline has passed");
+      throw conflict("The application deadline has passed", "deadline_passed");
     }
-    if (body.proposedPay != null && !job.negotiable) throw conflict("This job does not accept pay proposals");
+    if (body.proposedPay != null && !job.negotiable) {
+      throw conflict("This job does not accept pay proposals", "no_pay_proposals");
+    }
 
     const eligibility = await checkEligibility(db, me.id, { tier: job.tier, categoryId: job.category_id });
-    if (!eligibility.eligible) throw new AppError(403, "not_eligible", eligibility.reason ?? "Not eligible");
+    if (!eligibility.eligible) throw notEligible(eligibility);
 
     const existing = await db.query("select id, status from applications where job_id = $1 and worker_id = $2", [
       job.id,
@@ -48,7 +50,7 @@ applicationsRouter.post("/jobs/:id/applications", requireAuth, async (req, res) 
     ]);
     let row;
     if (existing.rows[0]) {
-      if (existing.rows[0].status !== "withdrawn") throw conflict("You already applied to this job");
+      if (existing.rows[0].status !== "withdrawn") throw conflict("You already applied to this job", "already_applied");
       row = (
         await db.query(
           `update applications set status = 'pending', message = $2, proposed_pay = $3, updated_at = now()
@@ -82,8 +84,8 @@ async function listApplicants(where: string, param: string): Promise<Applicant[]
             u.id as worker_id, u.username, u.identity_verified, u.high_trust_approved,
             w.experience_level, coalesce(w.area, '') as area,
             p.id as pairing_id,
-            coalesce((select array_agg(s.name order by s.name) from user_skills us
-                       join skills s on s.id = us.skill_id where us.user_id = u.id), '{}') as skills
+            coalesce((select json_agg(json_build_object('slug', s.slug, 'name', s.name) order by s.name)
+                       from user_skills us join skills s on s.id = us.skill_id where us.user_id = u.id), '[]') as skills
      from applications a
      join jobs j on j.id = a.job_id
      join users u on u.id = a.worker_id
@@ -176,7 +178,7 @@ applicationsRouter.post("/applications/:id/withdraw", requireAuth, async (req, r
   const me = currentUser(req);
   const app = await applicationWithJob(pool, idParam(req));
   if (app.worker_id !== me.id) throw forbidden();
-  if (app.status !== "pending") throw conflict("Only pending applications can be withdrawn");
+  if (app.status !== "pending") throw conflict("Only pending applications can be withdrawn", "application_not_pending");
   await pool.query("update applications set status = 'withdrawn', updated_at = now() where id = $1", [app.id]);
   res.json({ application: { id: app.id, status: "withdrawn" } });
 });
@@ -186,14 +188,16 @@ applicationsRouter.post("/applications/:id/select", requireAuth, async (req, res
   const pairingId = await withTransaction(async (db) => {
     const app = await applicationWithJob(db, idParam(req), true);
     if (app.employer_id !== me.id) throw forbidden("Only the employer can select applicants");
-    if (app.status !== "pending") throw conflict(`This application is ${app.status}`);
-    if (app.job_status !== "published") throw conflict("This job is not open");
+    if (app.status !== "pending") throw conflict(`This application is ${app.status}`, "application_not_pending");
+    if (app.job_status !== "published") throw conflict("This job is not open", "job_closed");
 
     const { rows } = await db.query(
       `select count(*)::int as n from pairings where job_id = $1 and status in ${ACTIVE_PAIRING}`,
       [app.job_id],
     );
-    if (rows[0].n >= app.workers_needed) throw conflict("All positions for this job are already filled");
+    if (rows[0].n >= app.workers_needed) {
+      throw conflict("All positions for this job are already filled", "positions_filled");
+    }
 
     await db.query("update applications set status = 'selected', updated_at = now() where id = $1", [app.id]);
     const pairing = await db.query(
@@ -213,7 +217,7 @@ applicationsRouter.post("/applications/:id/reject", requireAuth, async (req, res
   await withTransaction(async (db) => {
     const app = await applicationWithJob(db, idParam(req), true);
     if (app.employer_id !== me.id) throw forbidden();
-    if (app.status !== "pending") throw conflict(`This application is ${app.status}`);
+    if (app.status !== "pending") throw conflict(`This application is ${app.status}`, "application_not_pending");
     await db.query("update applications set status = 'rejected', updated_at = now() where id = $1", [app.id]);
     await notify(db, app.worker_id, "not_selected", { jobId: app.job_id, title: app.job_title });
   });

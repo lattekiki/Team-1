@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiRequestError } from "./api.ts";
+import { api, ApiRequestError, localizeError } from "./api.ts";
 
 type State<T> = { data: T | undefined; error: ApiRequestError | undefined; loading: boolean };
 
@@ -21,7 +21,10 @@ export function useApi<T>(path: string | null) {
         !cancelled &&
         setState({
           data: undefined,
-          error: error instanceof ApiRequestError ? error : new ApiRequestError(0, "network", "Network error"),
+          error:
+            error instanceof ApiRequestError
+              ? error
+              : new ApiRequestError(0, "network", localizeError("network", undefined, undefined)),
           loading: false,
         }),
     );
@@ -42,7 +45,7 @@ export function useAction() {
     try {
       return await fn();
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : "Something went wrong");
+      onError?.(err instanceof Error ? err.message : localizeError("internal", undefined, undefined));
       return undefined;
     } finally {
       setBusy(false);

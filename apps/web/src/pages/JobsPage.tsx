@@ -6,14 +6,13 @@ import { ApplyModal } from "../components/ApplyModal.tsx";
 import { JobCard } from "../components/JobCard.tsx";
 import { container, EmptyState, ErrorBox, field, Spinner } from "../components/ui.tsx";
 import { useAuth } from "../lib/auth.tsx";
-import { PAY_TYPE_LABEL, TIER_LABEL } from "../lib/format.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { useApi } from "../lib/useApi.ts";
 
 const FILTER_KEYS = ["q", "category", "tier", "area", "payType", "eligibleOnly"] as const;
 
 export function JobsPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [applying, setApplying] = useState<JobSummary | null>(null);
@@ -82,7 +81,7 @@ export function JobsPage() {
                   <option value="">{t("filterAllCategories")}</option>
                   {(categories.data?.categories ?? []).map((c) => (
                     <option key={c.slug} value={c.slug}>
-                      {c.name}
+                      {fmt.category(c.slug, c.name)}
                     </option>
                   ))}
                 </select>
@@ -95,7 +94,7 @@ export function JobsPage() {
                   <option value="">{t("filterAllTiers")}</option>
                   {[...TIERS].reverse().map((tier) => (
                     <option key={tier} value={tier}>
-                      {TIER_LABEL[tier]}
+                      {fmt.tier(tier)}
                     </option>
                   ))}
                 </select>
@@ -108,7 +107,7 @@ export function JobsPage() {
                   <option value="">{t("locationAll")}</option>
                   {JIMMA_AREAS.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.id} ({a.am})
+                      {fmt.area(a.id)}
                     </option>
                   ))}
                 </select>
@@ -126,7 +125,7 @@ export function JobsPage() {
                   <option value="">{t("filterAllPay")}</option>
                   {PAY_TYPES.map((p) => (
                     <option key={p} value={p}>
-                      {PAY_TYPE_LABEL[p]}
+                      {fmt.payType(p)}
                     </option>
                   ))}
                 </select>
@@ -165,7 +164,7 @@ export function JobsPage() {
               </div>
             ) : (
               <EmptyState icon={Search} title={t("noJobs")}>
-                Try a different area or category.
+                {t("noJobsHint")}
               </EmptyState>
             )}
           </div>

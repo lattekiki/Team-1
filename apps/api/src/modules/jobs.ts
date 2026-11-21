@@ -172,7 +172,9 @@ jobsRouter.patch("/jobs/:id", requireAuth, async (req, res) => {
   const me = currentUser(req);
   const body = jobUpdateSchema.parse(req.body);
   const job = await ownedJob(pool, idParam(req), me.id);
-  if (!["draft", "published"].includes(job.status)) throw conflict(`A ${job.status} job can no longer be edited`);
+  if (!["draft", "published"].includes(job.status)) {
+    throw conflict(`A ${job.status} job can no longer be edited`, "job_not_editable");
+  }
 
   const columns: Record<string, unknown> = {
     category_id: body.categoryId,
@@ -206,7 +208,7 @@ jobsRouter.patch("/jobs/:id", requireAuth, async (req, res) => {
 jobsRouter.post("/jobs/:id/publish", requireAuth, async (req, res) => {
   const me = currentUser(req);
   const job = await ownedJob(pool, idParam(req), me.id);
-  if (job.status !== "draft") throw conflict("Only draft jobs can be published");
+  if (job.status !== "draft") throw conflict("Only draft jobs can be published", "job_not_draft");
   await pool.query("update jobs set status = 'published', published_at = now(), updated_at = now() where id = $1", [
     job.id,
   ]);
@@ -218,12 +220,14 @@ jobsRouter.post("/jobs/:id/cancel", requireAuth, async (req, res) => {
   const me = currentUser(req);
   await withTransaction(async (db) => {
     const job = await ownedJob(db, idParam(req), me.id, true);
-    if (["cancelled", "expired"].includes(job.status)) throw conflict("This job is already closed");
+    if (["cancelled", "expired"].includes(job.status)) throw conflict("This job is already closed", "job_already_closed");
     const inProgress = await db.query(
       "select 1 from pairings where job_id = $1 and status in ('in_progress', 'completed')",
       [job.id],
     );
-    if (inProgress.rowCount) throw conflict("Work has already started on this job; cancel the pairing instead");
+    if (inProgress.rowCount) {
+      throw conflict("Work has already started on this job; cancel the pairing instead", "work_started");
+    }
 
     await db.query("update jobs set status = 'cancelled', updated_at = now() where id = $1", [job.id]);
     const apps = await db.query(

@@ -3,13 +3,14 @@ import { useState, type FormEvent } from "react";
 import type { JobSummary } from "@team1/shared";
 import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
-import { formatPay } from "../lib/format.ts";
+import { useI18n } from "../lib/i18n.tsx";
 import { useToast } from "../lib/toast.tsx";
 import { useAction } from "../lib/useApi.ts";
 import { btn, ErrorBox, field, Modal, TrustTierBadge } from "./ui.tsx";
 
 export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClose: () => void; onApplied: () => void }) {
   const { user } = useAuth();
+  const { t, fmt } = useI18n();
   const toast = useToast();
   const { busy, run } = useAction();
   const [message, setMessage] = useState("");
@@ -27,30 +28,32 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
       setError,
     );
     if (ok) {
-      toast(`Pitch sent to @${job.employer.username}. Your phone number stays hidden until you confirm a pairing.`);
+      toast(t("applySent", { username: job.employer.username }));
       onApplied();
       onClose();
     }
   };
 
   return (
-    <Modal title="Write Your Experience & Pitch" eyebrow={`@${job.employer.username} • ${job.area}`} onClose={onClose}>
+    <Modal title={t("applyTitle")} eyebrow={`@${job.employer.username} • ${fmt.area(job.area)}`} onClose={onClose}>
       <div className="mt-4 p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-2">
         <div className="flex items-center justify-between gap-3">
           <p className="font-bold text-sm text-zinc-900">{job.title}</p>
-          <span className="font-extrabold text-sm text-zinc-900 shrink-0">{formatPay(job)}</span>
+          <span className="font-extrabold text-sm text-zinc-900 shrink-0">{fmt.pay(job)}</span>
         </div>
         {job.description && <p className="text-xs text-zinc-600">{job.description}</p>}
         <div className="pt-1 flex flex-wrap items-center gap-2">
           <TrustTierBadge tier={job.tier} />
-          {job.paymentTerms && <span className="text-[11px] font-semibold text-zinc-500">{job.paymentTerms}</span>}
+          {job.paymentTerms && (
+            <span className="text-[11px] font-semibold text-zinc-500">{fmt.paymentTerms(job.paymentTerms)}</span>
+          )}
         </div>
       </div>
 
       <form onSubmit={submit} className="mt-4 space-y-4">
         <div>
           <label htmlFor="pitch" className={field.label}>
-            Your relevant experience (only the employer sees this)
+            {t("applyPitchLabel")}
           </label>
           <textarea
             id="pitch"
@@ -59,7 +62,7 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
             rows={4}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Describe your hands-on experience, availability, and how close you are to the area..."
+            placeholder={t("applyPitchPlaceholder")}
             className={field.textarea}
           />
         </div>
@@ -67,7 +70,7 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
         {job.negotiable && (
           <div>
             <label htmlFor="proposed" className={field.label}>
-              Propose a different amount (ETB, optional)
+              {t("applyProposeLabel")}
             </label>
             <input
               id="proposed"
@@ -76,7 +79,7 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
               inputMode="numeric"
               value={proposedPay}
               onChange={(e) => setProposedPay(e.target.value)}
-              placeholder={`Listed: ${formatPay(job)}`}
+              placeholder={t("applyProposePlaceholder", { pay: fmt.pay(job) })}
               className={field.input}
             />
           </div>
@@ -84,20 +87,17 @@ export function ApplyModal({ job, onClose, onApplied }: { job: JobSummary; onClo
 
         <div className="p-3 rounded-xl bg-zinc-100 text-xs text-zinc-700 flex items-center gap-2">
           <Lock className="w-4 h-4 text-zinc-900 shrink-0" />
-          <span>
-            Applying as <strong>@{user?.username}</strong>. Phone numbers stay hidden until you accept the employer's
-            selection.
-          </span>
+          <span>{t("applyAsNote", { username: user?.username ?? "" })}</span>
         </div>
 
         {error && <ErrorBox message={error} />}
 
         <div className="flex items-center justify-end gap-2.5 pt-1">
           <button type="button" onClick={onClose} className={btn.ghost}>
-            Cancel
+            {t("cancel")}
           </button>
           <button type="submit" disabled={busy} className={btn.primary}>
-            Submit Pitch & Apply
+            {t("applySubmit")}
           </button>
         </div>
       </form>

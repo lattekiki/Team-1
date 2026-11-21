@@ -47,7 +47,7 @@ safetyRouter.post("/verification", requireAuth, async (req, res) => {
     "select 1 from verification_records where user_id = $1 and kind = $2 and status = 'pending'",
     [me.id, body.kind],
   );
-  if (pending.rowCount) throw conflict("You already have a pending request of this type");
+  if (pending.rowCount) throw conflict("You already have a pending request of this type", "verification_pending");
   const { rows } = await pool.query(
     "insert into verification_records (user_id, kind, note) values ($1, $2, $3) returning *",
     [me.id, body.kind, body.note],

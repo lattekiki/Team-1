@@ -24,7 +24,7 @@ profilesRouter.patch("/me", requireAuth, async (req, res) => {
       body.username,
       me.id,
     ]);
-    if (taken.rowCount) throw conflict("That username is taken");
+    if (taken.rowCount) throw conflict("That username is taken", "username_taken");
   }
   await pool.query(
     `update users set
@@ -118,7 +118,10 @@ profilesRouter.get("/users/:username", async (req, res) => {
 
   const [rep, skills, reviews] = await Promise.all([
     reputationFor(pool, [u.id]),
-    pool.query("select s.name from user_skills us join skills s on s.id = us.skill_id where us.user_id = $1", [u.id]),
+    pool.query(
+      "select s.slug, s.name from user_skills us join skills s on s.id = us.skill_id where us.user_id = $1 order by s.name",
+      [u.id],
+    ),
     pool.query(
       `select r.overall, r.body, r.created_at, ru.username as reviewer
        from reviews r join users ru on ru.id = r.reviewer_id
@@ -143,7 +146,7 @@ profilesRouter.get("/users/:username", async (req, res) => {
             experienceLevel: u.experience_level,
             availability: u.availability,
             area: u.worker_area,
-            skills: skills.rows.map((s) => s.name),
+            skills: skills.rows.map((s) => ({ slug: s.slug, name: s.name })),
           }
         : null,
     employer:

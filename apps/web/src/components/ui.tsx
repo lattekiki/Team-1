@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import type { Tier } from "@team1/shared";
-import { TIER_LABEL } from "../lib/format.ts";
+import { useI18n } from "../lib/i18n.tsx";
 
 export const btn = {
   primary:
@@ -48,6 +48,7 @@ export const field = {
 export const container = "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
 
 export function TrustTierBadge({ tier, dark = false }: { tier: Tier; dark?: boolean }) {
+  const { fmt } = useI18n();
   const base = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight";
   if (tier === "vip") {
     return (
@@ -55,7 +56,7 @@ export function TrustTierBadge({ tier, dark = false }: { tier: Tier; dark?: bool
         className={`${base} ${dark ? "bg-amber-500/20 text-amber-300 border border-amber-400/30" : "bg-amber-50 text-amber-900 border border-amber-200"}`}
       >
         <ShieldAlert className="w-3.5 h-3.5" />
-        {TIER_LABEL.vip}
+        {fmt.tier("vip")}
       </span>
     );
   }
@@ -65,7 +66,7 @@ export function TrustTierBadge({ tier, dark = false }: { tier: Tier; dark?: bool
         className={`${base} ${dark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30" : "bg-emerald-50 text-emerald-800 border border-emerald-200"}`}
       >
         <ShieldCheck className="w-3.5 h-3.5" />
-        {TIER_LABEL.skilled}
+        {fmt.tier("skilled")}
       </span>
     );
   }
@@ -74,7 +75,7 @@ export function TrustTierBadge({ tier, dark = false }: { tier: Tier; dark?: bool
       className={`${base} ${dark ? "bg-white/10 text-zinc-200 border border-white/15" : "bg-zinc-100 text-zinc-700 border border-zinc-200"}`}
     >
       <CheckCircle2 className="w-3.5 h-3.5" />
-      {TIER_LABEL.ordinary}
+      {fmt.tier("ordinary")}
     </span>
   );
 }
@@ -103,12 +104,13 @@ export function CategoryIcon({ slug, className }: { slug: string; className?: st
 }
 
 export function Rating({ value, count, dark = false }: { value: number | null; count?: number; dark?: boolean }) {
+  const { t } = useI18n();
   return (
     <span
       className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${dark ? "bg-white/15 text-amber-300" : "bg-amber-50 text-amber-700"}`}
     >
       <Star className="w-3 h-3 fill-current" />
-      {value != null ? value.toFixed(1) : "New"}
+      {value != null ? value.toFixed(1) : t("ratingNew")}
       {count != null && <span className="font-medium opacity-80">({count})</span>}
     </span>
   );
@@ -138,6 +140,7 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const { t } = useI18n();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -160,7 +163,7 @@ export function Modal({
             {eyebrow && <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">{eyebrow}</span>}
             <h3 className="text-xl font-extrabold text-zinc-900 mt-1">{title}</h3>
           </div>
-          <button onClick={onClose} aria-label="Close" className="p-2 rounded-full hover:bg-zinc-100 text-zinc-500">
+          <button onClick={onClose} aria-label={t("close")} className="p-2 rounded-full hover:bg-zinc-100 text-zinc-500">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -170,11 +173,12 @@ export function Modal({
   );
 }
 
-export function Spinner({ label = "Loading..." }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center justify-center gap-2 py-10 text-sm text-zinc-500">
       <LoaderCircle className="w-4 h-4 animate-spin" />
-      {label}
+      {label ?? t("loading")}
     </div>
   );
 }

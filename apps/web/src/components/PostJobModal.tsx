@@ -2,17 +2,14 @@ import { ShieldAlert } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { JIMMA_AREAS, PAY_TYPES, type Category, type JobSummary, type PayType } from "@team1/shared";
 import { api } from "../lib/api.ts";
-import { fromLocalInput, PAY_TYPE_LABEL, TIER_LABEL, toLocalInput } from "../lib/format.ts";
+import { fromLocalInput, PAYMENT_TERM_KEYS, toLocalInput } from "../lib/format.ts";
+import { useI18n } from "../lib/i18n.tsx";
+import { en } from "../lib/locales/en.ts";
 import { useToast } from "../lib/toast.tsx";
 import { useAction, useApi } from "../lib/useApi.ts";
 import { btn, ErrorBox, field, Modal } from "./ui.tsx";
 
-const PAYMENT_TERMS = [
-  "Paid directly on completion",
-  "Paid at the end of each day",
-  "50% on arrival, 50% on completion",
-  "Paid weekly",
-];
+const PAYMENT_TERMS = PAYMENT_TERM_KEYS.map((key) => en[key]);
 
 type Form = {
   title: string;
@@ -55,6 +52,7 @@ export function PostJobModal({
   onClose: () => void;
   onSaved: (job: JobSummary) => void;
 }) {
+  const { t, fmt } = useI18n();
   const categories = useApi<{ categories: Category[] }>("/categories");
   const toast = useToast();
   const { busy, run } = useAction();
@@ -64,6 +62,7 @@ export function PostJobModal({
 
   const cats = categories.data?.categories ?? [];
   const selected = cats.find((c) => String(c.id) === form.categoryId);
+  const termOptions = PAYMENT_TERMS.includes(form.paymentTerms) ? PAYMENT_TERMS : [...PAYMENT_TERMS, form.paymentTerms];
 
   const submit = async (e: FormEvent, publish: boolean) => {
     e.preventDefault();
@@ -92,18 +91,18 @@ export function PostJobModal({
       setError,
     );
     if (res) {
-      toast(job ? "Job updated" : publish ? `Published “${res.job.title}”` : "Saved as draft");
+      toast(job ? t("toastJobUpdated") : publish ? t("toastJobPublished", { title: res.job.title }) : t("toastDraftSaved"));
       onSaved(res.job);
       onClose();
     }
   };
 
   return (
-    <Modal title={job ? "Edit job" : "Post a Job"} eyebrow="Employer Mode • Jimma Marketplace" onClose={onClose} wide>
+    <Modal title={job ? t("editJobTitle") : t("postTitle")} eyebrow={t("postEyebrow")} onClose={onClose} wide>
       <form onSubmit={(e) => submit(e, true)} className="mt-4 space-y-3.5">
         <div>
           <label htmlFor="title" className={field.label}>
-            Job title
+            {t("postJobTitleLabel")}
           </label>
           <input
             id="title"
@@ -112,7 +111,7 @@ export function PostJobModal({
             maxLength={120}
             value={form.title}
             onChange={(e) => set("title", e.target.value)}
-            placeholder="e.g. Weekend shop assistant or Kitchen sink repair"
+            placeholder={t("postJobTitlePlaceholder")}
             className={field.input}
           />
         </div>
@@ -120,7 +119,7 @@ export function PostJobModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label htmlFor="category" className={field.label}>
-              Category & trust tier
+              {t("postCategoryLabel")}
             </label>
             <select
               id="category"
@@ -129,22 +128,22 @@ export function PostJobModal({
               onChange={(e) => set("categoryId", e.target.value)}
               className={field.select}
             >
-              <option value="">Choose a category</option>
+              <option value="">{t("postCategoryChoose")}</option>
               {cats.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({TIER_LABEL[c.tier]})
+                  {fmt.category(c.slug, c.name)} ({fmt.tier(c.tier)})
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label htmlFor="area" className={field.label}>
-              Jimma area
+              {t("postAreaLabel")}
             </label>
             <select id="area" value={form.area} onChange={(e) => set("area", e.target.value)} className={field.select}>
               {JIMMA_AREAS.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.id} ({a.am})
+                  {fmt.area(a.id)}
                 </option>
               ))}
             </select>
@@ -154,26 +153,21 @@ export function PostJobModal({
         {selected?.tier === "vip" && (
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex gap-2">
             <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>
-              Tier 1 VIP: only workers with verified identity <strong>and</strong> safety-team approval can apply. Ratings
-              alone never qualify someone.
-            </span>
+            <span>{t("postVipWarning")}</span>
           </div>
         )}
-        {selected?.tier === "skilled" && (
-          <p className="text-[11px] text-zinc-500">Tier 2: applicants must list a matching skill on their profile.</p>
-        )}
+        {selected?.tier === "skilled" && <p className="text-[11px] text-zinc-500">{t("postSkilledNote")}</p>}
 
         <div>
           <label htmlFor="landmark" className={field.label}>
-            Landmark (shown publicly — don't enter a house number)
+            {t("postLandmarkLabel")}
           </label>
           <input
             id="landmark"
             maxLength={120}
             value={form.landmark}
             onChange={(e) => set("landmark", e.target.value)}
-            placeholder="e.g. Near Merkato central taxi stand"
+            placeholder={t("postLandmarkPlaceholder")}
             className={field.input}
           />
         </div>
@@ -181,7 +175,7 @@ export function PostJobModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="starts" className={field.label}>
-              Starts
+              {t("postStarts")}
             </label>
             <input
               id="starts"
@@ -193,7 +187,7 @@ export function PostJobModal({
           </div>
           <div>
             <label htmlFor="ends" className={field.label}>
-              Ends
+              {t("postEnds")}
             </label>
             <input
               id="ends"
@@ -208,7 +202,7 @@ export function PostJobModal({
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label htmlFor="paytype" className={field.label}>
-              Pay type
+              {t("postPayType")}
             </label>
             <select
               id="paytype"
@@ -218,14 +212,14 @@ export function PostJobModal({
             >
               {PAY_TYPES.map((p) => (
                 <option key={p} value={p}>
-                  {PAY_TYPE_LABEL[p]}
+                  {fmt.payType(p)}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label htmlFor="paymin" className={field.label}>
-              Amount (ETB)
+              {t("postAmount")}
             </label>
             <input
               id="paymin"
@@ -239,7 +233,7 @@ export function PostJobModal({
           </div>
           <div>
             <label htmlFor="paymax" className={field.label}>
-              Up to (optional)
+              {t("postUpTo")}
             </label>
             <input
               id="paymax"
@@ -255,7 +249,7 @@ export function PostJobModal({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="sm:col-span-2">
             <label htmlFor="terms" className={field.label}>
-              Payment terms
+              {t("postPaymentTerms")}
             </label>
             <select
               id="terms"
@@ -263,14 +257,16 @@ export function PostJobModal({
               onChange={(e) => set("paymentTerms", e.target.value)}
               className={field.select}
             >
-              {PAYMENT_TERMS.map((term) => (
-                <option key={term}>{term}</option>
+              {termOptions.map((term) => (
+                <option key={term} value={term}>
+                  {fmt.paymentTerms(term)}
+                </option>
               ))}
             </select>
           </div>
           <div>
             <label htmlFor="workers" className={field.label}>
-              Workers needed
+              {t("postWorkersNeeded")}
             </label>
             <input
               id="workers"
@@ -286,40 +282,38 @@ export function PostJobModal({
 
         <label className="flex items-center gap-2 text-xs font-semibold text-zinc-700">
           <input type="checkbox" checked={form.negotiable} onChange={(e) => set("negotiable", e.target.checked)} />
-          Allow applicants to propose a different amount
+          {t("postNegotiable")}
         </label>
 
         <div>
           <label htmlFor="desc" className={field.label}>
-            Task description
+            {t("postDescLabel")}
           </label>
           <textarea
             id="desc"
             rows={3}
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
-            placeholder="What needs doing, what to bring, any requirements..."
+            placeholder={t("postDescPlaceholder")}
             className={field.textarea}
           />
         </div>
 
-        <p className="text-[11px] text-zinc-500">
-          Payments are arranged directly between you and the worker during the pilot; the platform does not hold money.
-        </p>
+        <p className="text-[11px] text-zinc-500">{t("postPilotNote")}</p>
 
         {error && <ErrorBox message={error} />}
 
         <div className="flex items-center justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={btn.ghost}>
-            Cancel
+            {t("cancel")}
           </button>
           {!job && (
             <button type="button" disabled={busy} onClick={(e) => submit(e, false)} className={btn.light}>
-              Save draft
+              {t("postSaveDraft")}
             </button>
           )}
           <button type="submit" disabled={busy} className={btn.primary}>
-            {job ? "Save changes" : "Publish Job"}
+            {job ? t("postSaveChanges") : t("postPublish")}
           </button>
         </div>
       </form>

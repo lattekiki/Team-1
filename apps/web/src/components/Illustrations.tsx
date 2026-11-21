@@ -1,9 +1,11 @@
 import { BadgeCheck } from "lucide-react";
+import { useI18n } from "../lib/i18n.tsx";
 
 export function HeroIllustration() {
+  const { t } = useI18n();
   return (
     <div className="relative mx-auto w-full max-w-[390px] select-none">
-      <svg viewBox="0 0 400 420" className="w-full h-auto drop-shadow-sm" role="img" aria-label="Ethiopian student worker in Jimma">
+      <svg viewBox="0 0 400 420" className="w-full h-auto drop-shadow-sm" role="img" aria-label={t("illusHeroAlt")}>
         <defs>
           <linearGradient id="tibebAccent" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#D97706" />
@@ -47,16 +49,16 @@ export function HeroIllustration() {
           <BadgeCheck className="w-4 h-4 text-emerald-400" />
         </div>
         <div>
-          <p className="text-[11px] font-bold text-zinc-900 leading-tight">@username • Public</p>
-          <p className="text-[10px] text-zinc-500">Real name & phone stay private</p>
+          <p className="text-[11px] font-bold text-zinc-900 leading-tight">{t("illusPublicTitle")}</p>
+          <p className="text-[10px] text-zinc-500">{t("illusPublicSub")}</p>
         </div>
       </div>
 
       <div className="absolute bottom-10 -right-2 sm:-right-4 bg-zinc-900 text-white shadow-xl rounded-2xl px-4 py-2.5 flex items-center gap-2.5">
         <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
         <div>
-          <p className="text-xs font-bold">Pairing confirmed</p>
-          <p className="text-[10px] text-zinc-400">Phone unlocked to start work</p>
+          <p className="text-xs font-bold">{t("illusPairedTitle")}</p>
+          <p className="text-[10px] text-zinc-400">{t("illusPairedSub")}</p>
         </div>
       </div>
     </div>
@@ -64,9 +66,10 @@ export function HeroIllustration() {
 }
 
 export function HowItWorksIllustration() {
+  const { t } = useI18n();
   return (
     <div className="relative mx-auto w-full max-w-[340px] select-none">
-      <svg viewBox="0 0 360 380" className="w-full h-auto" role="img" aria-label="Ethiopian professional">
+      <svg viewBox="0 0 360 380" className="w-full h-auto" role="img" aria-label={t("illusHowAlt")}>
         <path
           d="M55,250 C30,190 65,115 145,105 C225,95 295,140 285,220 C275,295 190,320 115,305 C75,296 70,285 55,250 Z"
           fill="#111111"

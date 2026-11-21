@@ -12,11 +12,12 @@ export class AppError extends Error {
   }
 }
 
-export const badRequest = (message: string, details?: unknown) => new AppError(400, "bad_request", message, details);
+// `code` is stable and translated by the web client; `message` is the English fallback.
+export const badRequest = (message: string, code = "bad_request") => new AppError(400, code, message);
 export const unauthorized = (message = "Sign in required") => new AppError(401, "unauthorized", message);
-export const forbidden = (message = "You do not have access to this") => new AppError(403, "forbidden", message);
+export const forbidden = (message = "You do not have access to this", code = "forbidden") => new AppError(403, code, message);
 export const notFound = (message = "Not found") => new AppError(404, "not_found", message);
-export const conflict = (message: string) => new AppError(409, "conflict", message);
+export const conflict = (message: string, code = "conflict") => new AppError(409, code, message);
 
 export const notFoundHandler: RequestHandler = (_req, _res, next) => next(notFound("Route not found"));
 

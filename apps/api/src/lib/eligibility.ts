@@ -1,5 +1,6 @@
 import type { Eligibility, Tier } from "@team1/shared";
 import type { Db } from "../db/pool.ts";
+import { AppError } from "./errors.ts";
 
 export type WorkerTrust = {
   active: boolean;
@@ -30,14 +31,24 @@ export async function loadWorkerTrust(db: Db, userId: string): Promise<WorkerTru
 
 // Tier eligibility is a hard filter (SRS section 7). Ratings never substitute for these checks.
 export function evaluateEligibility(trust: WorkerTrust, job: { tier: Tier; categoryId: number }): Eligibility {
-  if (!trust.active) return { eligible: false, reason: "Your account is not active" };
+  if (!trust.active) return { eligible: false, code: "inactive", reason: "Your account is not active" };
   if (job.tier === "skilled" && !trust.skillCategoryIds.has(job.categoryId)) {
-    return { eligible: false, reason: "Add a matching skill to your worker profile to apply for skilled jobs" };
+    return {
+      eligible: false,
+      code: "skill_required",
+      reason: "Add a matching skill to your worker profile to apply for skilled jobs",
+    };
   }
   if (job.tier === "vip") {
-    if (!trust.identityVerified) return { eligible: false, reason: "VIP jobs require identity verification" };
+    if (!trust.identityVerified) {
+      return { eligible: false, code: "identity_required", reason: "VIP jobs require identity verification" };
+    }
     if (!trust.highTrustApproved) {
-      return { eligible: false, reason: "VIP jobs require high-trust approval from the safety team" };
+      return {
+        eligible: false,
+        code: "high_trust_required",
+        reason: "VIP jobs require high-trust approval from the safety team",
+      };
     }
   }
   return { eligible: true };
@@ -46,3 +57,6 @@ export function evaluateEligibility(trust: WorkerTrust, job: { tier: Tier; categ
 export async function checkEligibility(db: Db, userId: string, job: { tier: Tier; categoryId: number }) {
   return evaluateEligibility(await loadWorkerTrust(db, userId), job);
 }
+
+export const notEligible = (e: Eligibility) =>
+  new AppError(403, "not_eligible", e.reason ?? "Not eligible", { reason: e.code });

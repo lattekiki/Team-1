@@ -202,7 +202,9 @@ export type Me = {
 export type Category = { id: number; slug: string; name: string; tier: Tier; openJobs: number };
 export type Skill = { id: number; slug: string; name: string; categoryId: number | null };
 
-export type Eligibility = { eligible: boolean; reason?: string };
+export type EligibilityCode = "inactive" | "skill_required" | "identity_required" | "high_trust_required";
+export type Eligibility = { eligible: boolean; code?: EligibilityCode; reason?: string };
+export type SkillTag = { slug: string; name: string };
 
 export type JobSummary = {
   id: string;
@@ -248,7 +250,7 @@ export type Applicant = {
     highTrustApproved: boolean;
     experienceLevel: ExperienceLevel | null;
     area: string;
-    skills: string[];
+    skills: SkillTag[];
   };
   job: { id: string; title: string; tier: Tier; status: JobStatus };
 };
@@ -273,7 +275,7 @@ export type Pairing = {
   job: Pick<
     JobSummary,
     "id" | "title" | "tier" | "area" | "landmark" | "startsAt" | "endsAt" | "payType" | "payMin" | "payMax" | "paymentTerms"
-  > & { categoryName: string };
+  > & { categoryName: string; categorySlug: string };
   worker: { id: string; username: string };
   employer: { id: string; username: string };
   agreedPay: number | null;
@@ -322,7 +324,7 @@ export type PublicProfile = {
     experienceLevel: ExperienceLevel;
     availability: string;
     area: string;
-    skills: string[];
+    skills: SkillTag[];
   } | null;
   employer: { employerType: EmployerType; businessName: string | null; area: string } | null;
   reviews: { overall: number; body: string; reviewer: string; createdAt: string }[];

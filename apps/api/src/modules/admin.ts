@@ -112,12 +112,12 @@ async function decide(adminId: string, recordId: string, approve: boolean, note:
     const { rows } = await db.query("select * from verification_records where id = $1 for update", [recordId]);
     const rec = rows[0];
     if (!rec) throw notFound("Verification request not found");
-    if (rec.status !== "pending") throw conflict(`This request was already ${rec.status}`);
+    if (rec.status !== "pending") throw conflict(`This request was already ${rec.status}`, "request_already_decided");
 
     if (approve && rec.kind === "high_trust") {
       const user = await db.query("select identity_verified from users where id = $1", [rec.user_id]);
       if (!user.rows[0]?.identity_verified) {
-        throw conflict("Approve identity verification before granting high-trust (VIP) access");
+        throw conflict("Approve identity verification before granting high-trust (VIP) access", "identity_first");
       }
     }
     await db.query(
@@ -181,7 +181,9 @@ adminRouter.post("/admin/users/:id/high-trust", adminOnly, async (req, res) => {
     const user = (await db.query("select identity_verified from users where id = $1 for update", [idParam(req)]))
       .rows[0];
     if (!user) throw notFound("User not found");
-    if (value && !user.identity_verified) throw conflict("Verify the user's identity before granting high-trust access");
+    if (value && !user.identity_verified) {
+      throw conflict("Verify the user's identity before granting high-trust access", "identity_first");
+    }
     await db.query("update users set high_trust_approved = $2, updated_at = now() where id = $1", [
       idParam(req),
       value,
@@ -197,7 +199,7 @@ adminRouter.post("/admin/users/:id/high-trust", adminOnly, async (req, res) => {
 adminRouter.post("/admin/users/:id/suspend", adminOnly, async (req, res) => {
   const me = currentUser(req);
   const { value, note } = flagSchema.parse(req.body);
-  if (idParam(req) === me.id) throw conflict("You cannot suspend your own account");
+  if (idParam(req) === me.id) throw conflict("You cannot suspend your own account", "cannot_suspend_self");
   await withTransaction(async (db) => {
     const { rowCount } = await db.query("update users set status = $2, updated_at = now() where id = $1", [
       idParam(req),

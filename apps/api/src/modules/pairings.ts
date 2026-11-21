@@ -10,13 +10,13 @@ import {
 import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth, type AuthUser } from "../lib/auth.ts";
 import { idParam } from "../lib/http.ts";
-import { checkEligibility } from "../lib/eligibility.ts";
-import { AppError, conflict, forbidden, notFound } from "../lib/errors.ts";
+import { checkEligibility, notEligible } from "../lib/eligibility.ts";
+import { conflict, forbidden, notFound } from "../lib/errors.ts";
 import { notify } from "../lib/events.ts";
 
 const PAIRING_SELECT = `
   select p.*, j.title, j.tier, j.area, j.landmark, j.starts_at, j.ends_at, j.pay_type, j.pay_min, j.pay_max,
-         j.payment_terms, j.workers_needed, c.name as category_name,
+         j.payment_terms, j.workers_needed, c.name as category_name, c.slug as category_slug,
          wu.username as worker_username, wu.phone as worker_phone,
          eu.username as employer_username, eu.phone as employer_phone,
          a.proposed_pay, rb.id as rebooking_id, rb.status as rebooking_status
@@ -56,6 +56,7 @@ function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
       payMax: r.pay_max,
       paymentTerms: r.payment_terms,
       categoryName: r.category_name,
+      categorySlug: r.category_slug,
     },
     worker: { id: r.worker_id, username: r.worker_username },
     employer: { id: r.employer_id, username: r.employer_username },
@@ -99,7 +100,9 @@ async function respond(res: import("express").Response, id: string, viewer: Auth
 }
 
 function assertStatus(p: Row, allowed: PairingStatus[], action: string) {
-  if (!allowed.includes(p.status)) throw conflict(`Cannot ${action} a pairing that is ${p.status.replace("_", " ")}`);
+  if (!allowed.includes(p.status)) {
+    throw conflict(`Cannot ${action} a pairing that is ${p.status.replace("_", " ")}`, "pairing_wrong_status");
+  }
 }
 
 function assertParty(p: Row, userId: string, role?: "worker" | "employer") {
@@ -112,7 +115,7 @@ function assertParty(p: Row, userId: string, role?: "worker" | "employer") {
 
 const otherParty = (p: Row, userId: string): string => (p.worker_id === userId ? p.employer_id : p.worker_id);
 
-async function fillJobIfFull(db: Db, jobId: string, workersNeeded: number) {
+async function fillJobIfFull(db: Db, jobId: string, workersNeeded: number, title: string) {
   const { rows } = await db.query(
     "select count(*)::int as n from pairings where job_id = $1 and status in ('confirmed', 'in_progress', 'completed')",
     [jobId],
@@ -126,7 +129,7 @@ async function fillJobIfFull(db: Db, jobId: string, workersNeeded: number) {
      where job_id = $1 and status = 'pending' returning worker_id`,
     [jobId],
   );
-  for (const r of rejected.rows) await notify(db, r.worker_id, "not_selected", { jobId });
+  for (const r of rejected.rows) await notify(db, r.worker_id, "not_selected", { jobId, title });
 }
 
 export const pairingsRouter = Router();
@@ -156,13 +159,13 @@ pairingsRouter.post("/pairings/:id/accept", requireAuth, async (req, res) => {
     // Re-check: verification may have been revoked since the application was made.
     const jobRow = (await db.query("select tier, category_id from jobs where id = $1", [p.job_id])).rows[0];
     const eligibility = await checkEligibility(db, me.id, { tier: jobRow.tier, categoryId: jobRow.category_id });
-    if (!eligibility.eligible) throw new AppError(403, "not_eligible", eligibility.reason ?? "Not eligible");
+    if (!eligibility.eligible) throw notEligible(eligibility);
 
     await db.query(
       "update pairings set status = 'confirmed', confirmed_at = now(), updated_at = now() where id = $1",
       [p.id],
     );
-    await fillJobIfFull(db, p.job_id, p.workers_needed);
+    await fillJobIfFull(db, p.job_id, p.workers_needed, p.title);
     await notify(db, p.employer_id, "pairing_confirmed", { pairingId: p.id, title: p.title, worker: me.username });
   });
   await respond(res, idParam(req), me);
@@ -206,7 +209,9 @@ pairingsRouter.post("/pairings/:id/complete", requireAuth, async (req, res) => {
     assertParty(p, me.id);
     assertStatus(p, ["confirmed", "in_progress"], "complete");
     const column = p.worker_id === me.id ? "worker_completed_at" : "employer_completed_at";
-    if (p[column]) throw conflict("You already confirmed completion; waiting for the other side");
+    if (p[column]) {
+      throw conflict("You already confirmed completion; waiting for the other side", "already_confirmed_completion");
+    }
     const { rows } = await db.query(
       `update pairings set ${column} = now(), updated_at = now(),
          started_at = coalesce(started_at, now())
@@ -254,9 +259,11 @@ pairingsRouter.post("/pairings/:id/reviews", requireAuth, async (req, res) => {
   await withTransaction(async (db) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id);
-    if (p.status !== "completed") throw conflict("Reviews open once both sides confirm the job is completed");
+    if (p.status !== "completed") {
+      throw conflict("Reviews open once both sides confirm the job is completed", "review_not_open");
+    }
     const existing = await db.query("select 1 from reviews where pairing_id = $1 and reviewer_id = $2", [p.id, me.id]);
-    if (existing.rowCount) throw conflict("You already reviewed this job");
+    if (existing.rowCount) throw conflict("You already reviewed this job", "already_reviewed");
     const reviewee = otherParty(p, me.id);
     await db.query(
       `insert into reviews (pairing_id, reviewer_id, reviewee_id, overall, reliability, communication, quality, body)
@@ -285,8 +292,10 @@ pairingsRouter.post("/pairings/:id/rebook", requireAuth, async (req, res) => {
   const rebookingId = await withTransaction(async (db) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id, "employer");
-    if (p.status !== "completed") throw conflict("Only completed jobs can be rebooked");
-    if (p.rebooking_status === "pending") throw conflict("A rebooking request is already waiting for the worker");
+    if (p.status !== "completed") throw conflict("Only completed jobs can be rebooked", "rebook_not_completed");
+    if (p.rebooking_status === "pending") {
+      throw conflict("A rebooking request is already waiting for the worker", "rebook_pending");
+    }
 
     const job = await db.query(
       `insert into jobs (employer_id, category_id, tier, invited_worker_id, title, description, area, landmark,
@@ -367,7 +376,7 @@ async function loadRebooking(db: Db, id: string, workerId: string) {
   const rb = rows[0];
   if (!rb) throw notFound("Rebooking not found");
   if (rb.worker_id !== workerId) throw forbidden("Only the invited worker can respond");
-  if (rb.status !== "pending") throw conflict(`This request is already ${rb.status}`);
+  if (rb.status !== "pending") throw conflict(`This request is already ${rb.status}`, "request_already_decided");
   return rb;
 }
 
@@ -376,7 +385,7 @@ pairingsRouter.post("/rebookings/:id/accept", requireAuth, async (req, res) => {
   const pairingId = await withTransaction(async (db) => {
     const rb = await loadRebooking(db, idParam(req), me.id);
     const eligibility = await checkEligibility(db, me.id, { tier: rb.tier, categoryId: rb.category_id });
-    if (!eligibility.eligible) throw new AppError(403, "not_eligible", eligibility.reason ?? "Not eligible");
+    if (!eligibility.eligible) throw notEligible(eligibility);
 
     const pairing = await db.query(
       `insert into pairings (job_id, employer_id, worker_id, status, confirmed_at)

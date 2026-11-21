@@ -135,7 +135,7 @@ function Header() {
 
               <Link
                 to="/notifications"
-                aria-label={`${t("navNotifications")} (${unread} unread)`}
+                aria-label={t("navNotificationsAria", { n: unread })}
                 className="relative p-2 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-700 hover:text-zinc-900"
               >
                 <Bell className="w-4 h-4" />

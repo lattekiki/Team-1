@@ -2,20 +2,13 @@ import { CheckCircle2, ChevronRight, Clock, CreditCard, Lock, MapPin } from "luc
 import { Link, useNavigate } from "react-router";
 import type { JobSummary } from "@team1/shared";
 import { useAuth } from "../lib/auth.tsx";
-import { formatPay, formatSchedule, initials, PAY_TYPE_LABEL, timeAgo } from "../lib/format.ts";
+import { initials } from "../lib/format.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { TrustTierBadge } from "./ui.tsx";
 
-const EMPLOYER_TYPE_LABEL = {
-  individual: "Individual",
-  household: "Household",
-  business: "Business",
-  institution: "Institution",
-} as const;
-
 export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?: boolean; onApply: (job: JobSummary) => void }) {
   const { user } = useAuth();
-  const { t } = useI18n();
+  const { t, tp, fmt } = useI18n();
   const navigate = useNavigate();
   const muted = dark ? "text-zinc-400" : "text-zinc-500";
   const applied = job.myApplication && job.myApplication.status !== "withdrawn";
@@ -27,7 +20,7 @@ export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?
         to={`/jobs/${job.id}`}
         className={`text-xs font-bold px-4 py-2 rounded-full ${dark ? "bg-white text-zinc-900" : "bg-zinc-100 text-zinc-900"}`}
       >
-        Manage post
+        {t("jobManage")}
       </Link>
     );
   } else if (applied) {
@@ -41,9 +34,9 @@ export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?
     );
   } else if (job.eligibility && !job.eligibility.eligible) {
     action = (
-      <span title={job.eligibility.reason} className={`inline-flex items-center gap-1 text-[11px] font-bold ${muted}`}>
+      <span title={fmt.eligibility(job.eligibility)} className={`inline-flex items-center gap-1 text-[11px] font-bold ${muted}`}>
         <Lock className="w-3.5 h-3.5" />
-        {job.tier === "vip" ? "Verification required" : "Skill required"}
+        {job.tier === "vip" ? t("lockVip") : t("lockSkill")}
       </span>
     );
   } else {
@@ -78,12 +71,12 @@ export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold leading-tight truncate">@{job.employer.username}</p>
-              <p className={`text-[10px] ${muted}`}>{job.employer.businessName ?? EMPLOYER_TYPE_LABEL[job.employer.employerType]}</p>
+              <p className={`text-[10px] ${muted}`}>{job.employer.businessName ?? fmt.employerType(job.employer.employerType)}</p>
             </div>
           </Link>
           <div className="text-right shrink-0">
-            <p className="text-sm font-extrabold">{formatPay(job)}</p>
-            <p className={`text-[10px] font-medium ${muted}`}>{PAY_TYPE_LABEL[job.payType]}</p>
+            <p className="text-sm font-extrabold">{fmt.pay(job)}</p>
+            <p className={`text-[10px] font-medium ${muted}`}>{fmt.payType(job.payType)}</p>
           </div>
         </div>
 
@@ -95,7 +88,7 @@ export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?
           <TrustTierBadge tier={job.tier} dark={dark} />
           {job.negotiable && (
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${dark ? "bg-white/15 text-amber-300" : "bg-zinc-100 text-zinc-800"}`}>
-              Negotiable Pay
+              {t("negotiablePay")}
             </span>
           )}
         </div>
@@ -104,18 +97,18 @@ export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?
           <div className="flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5 shrink-0 opacity-75" />
             <span>
-              <strong>{job.area}</strong>
+              <strong>{fmt.area(job.area)}</strong>
               {job.landmark && ` • ${job.landmark}`}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 shrink-0 opacity-75" />
-            <span>{formatSchedule(job.startsAt, job.endsAt)}</span>
+            <span>{fmt.schedule(job.startsAt, job.endsAt)}</span>
           </div>
           {job.paymentTerms && (
             <div className="flex items-start gap-2 pt-0.5">
               <CreditCard className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-75" />
-              <span className="text-[11px] leading-snug">{job.paymentTerms}</span>
+              <span className="text-[11px] leading-snug">{fmt.paymentTerms(job.paymentTerms)}</span>
             </div>
           )}
         </div>
@@ -127,8 +120,8 @@ export function JobCard({ job, dark = false, onApply }: { job: JobSummary; dark?
 
       <div className={`mt-5 pt-4 border-t flex items-center justify-between gap-2 ${dark ? "border-zinc-800" : "border-zinc-100"}`}>
         <span className="text-[11px] text-zinc-400">
-          {job.applicationCount} applicant{job.applicationCount === 1 ? "" : "s"}
-          {job.publishedAt && ` • ${timeAgo(job.publishedAt)}`}
+          {tp("applicants", job.applicationCount)}
+          {job.publishedAt && ` • ${fmt.timeAgo(job.publishedAt)}`}
         </span>
         {action}
       </div>

@@ -98,7 +98,7 @@ docs/PLAN.md
    - `ordinary`: active account with a worker profile
    - `skilled`: also at least one listed skill
    - `vip`: also `identity_verified` **and** `high_trust_approved` (admin decision). Rating never substitutes.
-2. **Contact privacy** (§11): `phone` is returned only by `GET /pairings/:id/contact`, only to the two parties, and only when the pairing is `confirmed`, `in_progress`, or `completed`.
+2. **Contact privacy** (§11): the other party's `phone` appears only in the `contact` field of a pairing response, only to the two parties, and only when the pairing is `confirmed`, `in_progress`, or `completed` (otherwise `contact` is `null`).
 3. **Reviews** only for `completed` pairings, by a party to the pairing, once each (DB unique constraint).
 4. **Admin routes** require `role = admin` (support gets read-only report access); every admin write goes to `audit_logs`.
 5. New workers with zero reviews are never hidden from applicant lists (§15).
@@ -109,25 +109,25 @@ docs/PLAN.md
 | Module | Routes |
 |---|---|
 | auth | `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/logout`, `GET /auth/me` |
-| profiles | `PATCH /me` (username, language, active_mode), `PUT /me/worker-profile`, `PUT /me/employer-profile`, `GET /users/:username` (public view) |
-| catalog | `GET /categories`, `GET /skills` |
-| jobs | `GET /jobs` (filters), `GET /jobs/:id`, `POST /jobs`, `PATCH /jobs/:id`, `POST /jobs/:id/publish`, `POST /jobs/:id/cancel`, `GET /me/jobs` |
-| applications | `POST /jobs/:id/applications`, `GET /jobs/:id/applications` (owner), `POST /applications/:id/withdraw`, `POST /applications/:id/select`, `POST /applications/:id/reject`, `GET /me/applications` |
-| pairings | `GET /me/pairings`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel`, `GET /pairings/:id/contact` |
-| reviews | `POST /pairings/:id/reviews`, `GET /users/:username/reviews` |
-| rebookings | `POST /pairings/:id/rebook`, `POST /rebookings/:id/accept`, `POST /rebookings/:id/decline` |
+| profiles | `PATCH /me` (username, language, active_mode), `GET /me/profile`, `PUT /me/worker-profile` (includes skill ids), `PUT /me/employer-profile`, `GET /users/:username` (public view with reviews) |
+| catalog | `GET /categories`, `GET /skills`, `GET /stats` (real counts for the home page) |
+| jobs | `GET /jobs` (filters, `eligibleOnly`), `GET /jobs/:id`, `POST /jobs`, `PATCH /jobs/:id`, `POST /jobs/:id/publish`, `POST /jobs/:id/cancel`, `GET /me/jobs` |
+| applications | `POST /jobs/:id/applications`, `GET /jobs/:id/applications` (owner), `GET /me/applicants` (all my jobs), `POST /applications/:id/withdraw`, `POST /applications/:id/select`, `POST /applications/:id/reject`, `GET /me/applications` |
+| pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel` |
+| reviews | `POST /pairings/:id/reviews` (public reviews are part of `GET /users/:username`) |
+| rebookings | `POST /pairings/:id/rebook`, `GET /me/rebookings`, `POST /rebookings/:id/accept`, `POST /rebookings/:id/decline` |
 | reports | `POST /reports` |
 | verification | `POST /verification`, `GET /me/verification` |
 | notifications | `GET /notifications`, `POST /notifications/read` |
-| admin | `GET /admin/reports`, `POST /admin/reports/:id/resolve`, `GET /admin/verification`, `POST /admin/verification/:id/approve`, `POST /admin/verification/:id/reject`, `POST /admin/users/:id/high-trust`, `POST /admin/users/:id/suspend`, `GET /admin/audit` |
+| admin | `GET /admin/overview`, `GET /admin/reports`, `POST /admin/reports/:id/resolve`, `GET /admin/verification`, `POST /admin/verification/:id/approve`, `POST /admin/verification/:id/reject`, `GET /admin/users?q=`, `POST /admin/users/:id/high-trust`, `POST /admin/users/:id/suspend`, `GET /admin/audit` |
 
 Errors are always `{ "error": { "code": string, "message": string, "details"?: unknown } }`.
 
 ## 8. Web pages
 
-`/login` (phone → code → username/language on first login) · `/` dashboard (switches on mode) · `/jobs` browse + filters · `/jobs/:id` detail + apply · `/jobs/new`, `/jobs/:id/edit` · `/my/jobs` employer jobs + applicants · `/my/applications` · `/pairings/:id` lifecycle, contact, complete, review, rebook · `/profile` · `/u/:username` public profile · `/notifications` · `/admin` reports / verification / users.
+`/` home (search, real stats, categories, latest jobs) · `/login` (phone → code → username/language on first login, honours `?next=`) · `/jobs` browse + filters · `/jobs/:id` detail + apply, or owner view with applicants, edit/publish/cancel · `/dashboard` worker mode (reputation, tier progression, rebooking requests, active jobs, applications) or employer mode (post job, my jobs, applicants, pairings, re-book) · `/pairings/:id` lifecycle, contact, complete, review, rebook, report · `/profile` account, worker profile + skills, employer profile, verification requests · `/u/:username` public profile · `/notifications` · `/admin` overview, verification, reports, users, audit log.
 
-Mobile-first layout, plain CSS, no UI library (keeps installs small on a slow connection).
+Creating and editing jobs happens in a modal (`PostJobModal`) rather than separate pages. Mobile-first layout with Tailwind 4 and lucide icons, following the supplied Hojii Jimmaa design.
 
 ## 9. Time-boxed milestones
 

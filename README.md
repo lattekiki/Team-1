@@ -19,16 +19,23 @@ Requires Node 22+ and PostgreSQL 16+ (local service, or `docker compose up -d` f
 npm install
 Copy-Item apps/api/.env.example apps/api/.env   # then set your Postgres password in DATABASE_URL
 npm run db:migrate                               # creates the database if missing, applies migrations
-npm run db:seed                                  # demo users: admin / abebe_worker / jimma_shop
+npm run db:seed                                  # demo users and six published demo jobs
 npm run dev                                      # API + web together
 ```
 
-Open http://localhost:5173. The home page shows whether the API can reach the database.
+Open http://localhost:5173.
 
 ## Sign-in during development
 
-SMS is not wired up yet. Request a code with any Ethiopian mobile number (for example `0911000002`)
-and read the 6-digit code from the API terminal output.
+SMS is not wired up yet. Request a code with any Ethiopian mobile number; outside production the sign-in
+page shows the 6-digit code (it is also printed in the API terminal). A new number asks for a username.
+
+| Demo account | Phone | Role |
+|---|---|---|
+| `admin` | `0911000001` | Admin console |
+| `abebe_worker` | `0911000002` | Worker |
+| `jimma_shop` | `0911000003` | Business employer (3 demo jobs) |
+| `kochi_family` | `0911000004` | Household employer (3 demo jobs, including a VIP childcare job) |
 
 ## Scripts
 
@@ -36,6 +43,6 @@ and read the 6-digit code from the API terminal output.
 |---|---|
 | `npm run dev` | API (watch mode) and web dev server |
 | `npm run db:migrate` | Apply pending SQL migrations |
-| `npm run db:seed` | Insert demo accounts |
+| `npm run db:seed` | Insert demo accounts and jobs (safe to re-run) |
 | `npm run typecheck` | Type-check every workspace |
 | `npm test` | API tests (uses `TEST_DATABASE_URL`) |

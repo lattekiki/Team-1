@@ -3,11 +3,13 @@ import { useState, type FormEvent } from "react";
 import type { Pairing } from "@team1/shared";
 import { api } from "../lib/api.ts";
 import { fromLocalInput } from "../lib/format.ts";
+import { useI18n } from "../lib/i18n.tsx";
 import { useToast } from "../lib/toast.tsx";
 import { useAction } from "../lib/useApi.ts";
 import { btn, ErrorBox, field, Modal } from "./ui.tsx";
 
 function StarPicker({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const { tp } = useI18n();
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-xs font-bold text-zinc-700">{label}</span>
@@ -18,7 +20,7 @@ function StarPicker({ label, value, onChange }: { label: string; value: number; 
             key={star}
             role="radio"
             aria-checked={value === star}
-            aria-label={`${star} star${star === 1 ? "" : "s"}`}
+            aria-label={tp("stars", star)}
             onClick={() => onChange(star)}
             className={`p-1.5 rounded-lg border ${value >= star ? "bg-amber-50 border-amber-300 text-amber-500" : "bg-zinc-50 border-zinc-200 text-zinc-300"}`}
           >
@@ -31,6 +33,7 @@ function StarPicker({ label, value, onChange }: { label: string; value: number; 
 }
 
 export function ReviewModal({ pairing, onClose, onDone }: { pairing: Pairing; onClose: () => void; onDone: () => void }) {
+  const { t } = useI18n();
   const toast = useToast();
   const { busy, run } = useAction();
   const [scores, setScores] = useState({ overall: 5, reliability: 5, communication: 5, quality: 5 });
@@ -42,45 +45,45 @@ export function ReviewModal({ pairing, onClose, onDone }: { pairing: Pairing; on
     e.preventDefault();
     const ok = await run(() => api(`/pairings/${pairing.id}/reviews`, { body: { ...scores, body } }), setError);
     if (ok) {
-      toast(`Review for @${other} submitted`);
+      toast(t("reviewSent", { username: other }));
       onDone();
       onClose();
     }
   };
 
   return (
-    <Modal title={`Rate & review @${other}`} eyebrow={pairing.job.title} onClose={onClose}>
+    <Modal title={t("reviewTitle", { username: other })} eyebrow={pairing.job.title} onClose={onClose}>
       <form onSubmit={submit} className="mt-4 space-y-3">
-        <StarPicker label="Overall" value={scores.overall} onChange={(v) => setScores((s) => ({ ...s, overall: v }))} />
+        <StarPicker label={t("reviewOverall")} value={scores.overall} onChange={(v) => setScores((s) => ({ ...s, overall: v }))} />
         <StarPicker
-          label="Reliability & punctuality"
+          label={t("reviewReliability")}
           value={scores.reliability}
           onChange={(v) => setScores((s) => ({ ...s, reliability: v }))}
         />
         <StarPicker
-          label="Communication"
+          label={t("reviewCommunication")}
           value={scores.communication}
           onChange={(v) => setScores((s) => ({ ...s, communication: v }))}
         />
         {pairing.myRole === "employer" && (
-          <StarPicker label="Work quality" value={scores.quality} onChange={(v) => setScores((s) => ({ ...s, quality: v }))} />
+          <StarPicker label={t("reviewQuality")} value={scores.quality} onChange={(v) => setScores((s) => ({ ...s, quality: v }))} />
         )}
         <textarea
           rows={3}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Optional: what went well, what could be better..."
+          placeholder={t("reviewPlaceholder")}
           className={field.textarea}
-          aria-label="Written review"
+          aria-label={t("reviewAria")}
         />
-        <p className="text-[11px] text-zinc-500">One review per job. It appears on their public profile.</p>
+        <p className="text-[11px] text-zinc-500">{t("reviewNote")}</p>
         {error && <ErrorBox message={error} />}
         <div className="flex items-center justify-end gap-2">
           <button type="button" onClick={onClose} className={btn.ghost}>
-            Cancel
+            {t("cancel")}
           </button>
           <button type="submit" disabled={busy} className={btn.primary}>
-            Submit review
+            {t("reviewSubmit")}
           </button>
         </div>
       </form>
@@ -89,6 +92,7 @@ export function ReviewModal({ pairing, onClose, onDone }: { pairing: Pairing; on
 }
 
 export function RebookModal({ pairing, onClose, onDone }: { pairing: Pairing; onClose: () => void; onDone: () => void }) {
+  const { t } = useI18n();
   const toast = useToast();
   const { busy, run } = useAction();
   const [startsAt, setStartsAt] = useState("");
@@ -96,6 +100,7 @@ export function RebookModal({ pairing, onClose, onDone }: { pairing: Pairing; on
   const [pay, setPay] = useState(pairing.agreedPay != null ? String(pairing.agreedPay) : "");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const worker = pairing.worker.username;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -113,51 +118,49 @@ export function RebookModal({ pairing, onClose, onDone }: { pairing: Pairing; on
       setError,
     );
     if (ok) {
-      toast(`Rebooking request sent to @${pairing.worker.username}`);
+      toast(t("rebookSent", { username: worker }));
       onDone();
       onClose();
     }
   };
 
   return (
-    <Modal title={`Re-book @${pairing.worker.username}`} eyebrow={pairing.job.title} onClose={onClose}>
+    <Modal title={t("rebookModalTitle", { username: worker })} eyebrow={pairing.job.title} onClose={onClose}>
       <form onSubmit={submit} className="mt-4 space-y-3.5">
-        <p className="text-xs text-zinc-600">
-          We copy the previous job details. Only @{pairing.worker.username} sees this request; it isn't listed publicly.
-        </p>
+        <p className="text-xs text-zinc-600">{t("rebookIntro", { username: worker })}</p>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="rb-start" className={field.label}>
-              New start
+              {t("rebookStart")}
             </label>
             <input id="rb-start" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className={field.input} />
           </div>
           <div>
             <label htmlFor="rb-end" className={field.label}>
-              New end
+              {t("rebookEnd")}
             </label>
             <input id="rb-end" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className={field.input} />
           </div>
         </div>
         <div>
           <label htmlFor="rb-pay" className={field.label}>
-            Pay (ETB)
+            {t("rebookPay")}
           </label>
           <input id="rb-pay" type="number" min={0} value={pay} onChange={(e) => setPay(e.target.value)} className={field.input} />
         </div>
         <div>
           <label htmlFor="rb-desc" className={field.label}>
-            Changes to the task (optional)
+            {t("rebookChanges")}
           </label>
           <textarea id="rb-desc" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={field.textarea} />
         </div>
         {error && <ErrorBox message={error} />}
         <div className="flex items-center justify-end gap-2">
           <button type="button" onClick={onClose} className={btn.ghost}>
-            Cancel
+            {t("cancel")}
           </button>
           <button type="submit" disabled={busy} className={btn.primary}>
-            Send rebooking request
+            {t("rebookSend")}
           </button>
         </div>
       </form>
@@ -168,12 +171,13 @@ export function RebookModal({ pairing, onClose, onDone }: { pairing: Pairing; on
 export function ReportButton({
   targetType,
   targetId,
-  label = "Report",
+  label,
 }: {
   targetType: "user" | "job" | "pairing" | "review";
   targetId: string;
   label?: string;
 }) {
+  const { t } = useI18n();
   const toast = useToast();
   const { busy, run } = useAction();
   const [open, setOpen] = useState(false);
@@ -184,7 +188,7 @@ export function ReportButton({
     e.preventDefault();
     const ok = await run(() => api("/reports", { body: { targetType, targetId, reason } }), setError);
     if (ok) {
-      toast("Report sent to the safety team. Thank you.");
+      toast(t("reportSent"));
       setOpen(false);
       setReason("");
     }
@@ -194,10 +198,10 @@ export function ReportButton({
     <>
       <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1 text-[11px] font-bold text-zinc-500 hover:text-red-700">
         <Flag className="w-3.5 h-3.5" />
-        {label}
+        {label ?? t("reportDefault")}
       </button>
       {open && (
-        <Modal title="Report a problem" eyebrow="Safety team" onClose={() => setOpen(false)}>
+        <Modal title={t("reportTitle")} eyebrow={t("reportEyebrow")} onClose={() => setOpen(false)}>
           <form onSubmit={submit} className="mt-4 space-y-3">
             <textarea
               required
@@ -205,17 +209,17 @@ export function ReportButton({
               rows={4}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="What happened? Include dates and details. If someone is in danger, contact local emergency services first."
+              placeholder={t("reportPlaceholder")}
               className={field.textarea}
-              aria-label="Reason"
+              aria-label={t("reportAria")}
             />
             {error && <ErrorBox message={error} />}
             <div className="flex items-center justify-end gap-2">
               <button type="button" onClick={() => setOpen(false)} className={btn.ghost}>
-                Cancel
+                {t("cancel")}
               </button>
               <button type="submit" disabled={busy} className={btn.danger}>
-                Send report
+                {t("reportSend")}
               </button>
             </div>
           </form>

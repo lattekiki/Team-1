@@ -82,8 +82,8 @@ authRouter.post("/auth/otp/verify", otpLimiter, async (req, res) => {
       [phone],
     );
     const otp = rows[0];
-    if (!otp) throw badRequest("Code expired. Request a new one.");
-    if (otp.attempts >= OTP_MAX_ATTEMPTS) throw badRequest("Too many wrong attempts. Request a new code.");
+    if (!otp) throw badRequest("Code expired. Request a new one.", "otp_expired");
+    if (otp.attempts >= OTP_MAX_ATTEMPTS) throw badRequest("Too many wrong attempts. Request a new code.", "otp_locked");
 
     const expected = Buffer.from(otp.code_hash, "hex");
     const actual = Buffer.from(hashCode(phone, code), "hex");
@@ -102,7 +102,7 @@ authRouter.post("/auth/otp/verify", otpLimiter, async (req, res) => {
         throw new AppError(422, "username_required", "Choose a public username to finish signing up");
       }
       const taken = await db.query("select 1 from users where lower(username) = lower($1)", [username]);
-      if (taken.rowCount) throw conflict("That username is taken");
+      if (taken.rowCount) throw conflict("That username is taken", "username_taken");
       const created = await db.query(
         "insert into users (phone, username, language) values ($1, $2, $3) returning id",
         [phone, username, language ?? "en"],
