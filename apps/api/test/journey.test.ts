@@ -294,6 +294,40 @@ describe("hard rules", () => {
     await worker.agent.post("/api/users/someone/block").expect(404);
   });
 
+  it("lets a user open a support ticket and staff reply then resolve", async () => {
+    const user = await signUp("ticket_user");
+    const admin = await signUp("ticket_admin");
+    await pool.query("update users set role = 'admin' where id = $1", [admin.id]);
+
+    const created = await user.agent
+      .post("/api/tickets")
+      .send({
+        subject: "Cannot publish my job",
+        category: "job",
+        body: "I hit publish but the job stays in draft for some reason.",
+      })
+      .expect(201);
+    expect(created.body.ticket.status).toBe("waiting_staff");
+    expect(created.body.ticket.messages).toHaveLength(1);
+    const ticketId = created.body.ticket.id as string;
+
+    await admin.agent
+      .post(`/api/tickets/${ticketId}/messages`)
+      .send({ body: "Please refresh and try publish again; draft jobs need a category and area." })
+      .expect(200);
+    expect((await user.agent.get(`/api/tickets/${ticketId}`).expect(200)).body.ticket.status).toBe("waiting_user");
+
+    const notes = await user.agent.get("/api/notifications").expect(200);
+    expect(notes.body.notifications.map((n: { type: string }) => n.type)).toContain("ticket_reply");
+
+    await admin.agent.post(`/api/admin/tickets/${ticketId}/resolve`).send({ status: "resolved" }).expect(200);
+    expect((await user.agent.get(`/api/tickets/${ticketId}`).expect(200)).body.ticket.status).toBe("resolved");
+    await user.agent
+      .post(`/api/tickets/${ticketId}/messages`)
+      .send({ body: "Still stuck after refresh." })
+      .expect(409);
+  });
+
   it("lets either party open a dispute and an admin resume or cancel it", async () => {
     const employer = await signUp("dispute_shop");
     const worker = await signUp("dispute_worker");

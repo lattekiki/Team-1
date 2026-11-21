@@ -18,6 +18,7 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
     `select
        (select count(*) from reports where status in ('open', 'reviewing'))::int as open_reports,
        (select count(*) from disputes where status = 'open')::int as open_disputes,
+       (select count(*) from support_tickets where status in ('open', 'waiting_staff', 'waiting_user'))::int as open_tickets,
        (select count(*) from verification_records where status = 'pending')::int as pending_verifications,
        (select count(*) from users)::int as users,
        (select count(*) from jobs where status = 'published')::int as open_jobs,
@@ -29,6 +30,7 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
     overview: {
       openReports: r.open_reports,
       openDisputes: r.open_disputes,
+      openTickets: r.open_tickets,
       pendingVerifications: r.pending_verifications,
       users: r.users,
       openJobs: r.open_jobs,

@@ -10,6 +10,7 @@ import { jobsRouter } from "./modules/jobs.ts";
 import { pairingsRouter } from "./modules/pairings.ts";
 import { profilesRouter } from "./modules/profiles.ts";
 import { safetyRouter } from "./modules/safety.ts";
+import { ticketsRouter } from "./modules/tickets.ts";
 
 export function createApp() {
   const app = express();
@@ -43,6 +44,7 @@ export function createApp() {
   api.use(applicationsRouter);
   api.use(pairingsRouter);
   api.use(safetyRouter);
+  api.use(ticketsRouter);
   api.use(adminRouter);
 
   app.use("/api", api);

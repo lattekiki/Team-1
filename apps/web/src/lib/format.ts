@@ -60,6 +60,8 @@ export function makeFormatters(lang: Language, { t, tp, tx }: { t: Translate; tp
     reportStatus: (s: string) => tx(`reportStatus_${s}`, s),
     reportTarget: (s: string) => tx(`reportTarget_${s}`, s),
     disputeStatus: (s: string) => tx(`disputeStatus_${s}`, s),
+    ticketStatus: (s: string) => tx(`ticketStatus_${s}`, s),
+    ticketCategory: (s: string) => tx(`ticketCategory_${s}`, s),
     role: (r: Role) => t(`role_${r}`),
     category: (slug: string, fallback: string) => tx(`cat_${slug}`, fallback),
     skill: (slug: string, fallback: string) => tx(`skill_${slug}`, fallback),
@@ -126,9 +128,16 @@ export function makeFormatters(lang: Language, { t, tp, tx }: { t: Translate; tp
         rebook_declined: "/dashboard",
         verification_updated: "/profile",
         report_updated: null,
+        ticket_reply: p.ticketId ? `/tickets/${p.ticketId}` : "/tickets",
+        ticket_updated: p.ticketId ? `/tickets/${p.ticketId}` : "/tickets",
       };
+      const subject = p.subject ? String(p.subject) : "";
       return {
-        text: tx(`notif_${n.type}`, t("notif_unknown"), vars),
+        text: tx(`notif_${n.type}`, t("notif_unknown"), {
+          ...vars,
+          subject,
+          ticketStatus: p.status ? fmt.ticketStatus(String(p.status)) : "",
+        }),
         href: n.type in href ? (href[n.type] ?? null) : pairing,
       };
     },

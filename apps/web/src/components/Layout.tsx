@@ -1,4 +1,4 @@
-import { Bell, Briefcase, Building2, LogOut, Shield, UserRound } from "lucide-react";
+import { Bell, Briefcase, Building2, LifeBuoy, LogOut, Shield, UserRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import type { Language } from "@team1/shared";
@@ -165,6 +165,14 @@ function Header() {
                     >
                       <UserRound className="w-4 h-4" />
                       {t("navProfile")}
+                    </Link>
+                    <Link
+                      to="/tickets"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-zinc-100 font-semibold"
+                    >
+                      <LifeBuoy className="w-4 h-4" />
+                      {t("navSupport")}
                     </Link>
                     <button
                       onClick={() => {

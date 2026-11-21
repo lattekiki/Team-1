@@ -15,6 +15,8 @@ import { NotificationsPage } from "./pages/NotificationsPage.tsx";
 import { PairingPage } from "./pages/PairingPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
 import { PublicProfilePage } from "./pages/PublicProfilePage.tsx";
+import { TicketDetailPage } from "./pages/TicketDetailPage.tsx";
+import { TicketsPage } from "./pages/TicketsPage.tsx";
 
 function RequireAuth({ children, roles }: { children: ReactNode; roles?: Role[] }) {
   const { user, loading } = useAuth();
@@ -46,6 +48,8 @@ export function App() {
         <Route path="/pairings/:id" element={<RequireAuth><PairingPage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
+        <Route path="/tickets" element={<RequireAuth><TicketsPage /></RequireAuth>} />
+        <Route path="/tickets/:id" element={<RequireAuth><TicketDetailPage /></RequireAuth>} />
         <Route path="/admin" element={<RequireAuth roles={["admin", "support"]}><AdminPage /></RequireAuth>} />
         <Route path="*" element={<NotFound />} />
       </Routes>

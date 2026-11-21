@@ -9,6 +9,8 @@ export const EMPLOYER_TYPES = ["individual", "household", "business", "instituti
 export const EXPERIENCE_LEVELS = ["beginner", "intermediate", "experienced", "expert"] as const;
 export const VERIFICATION_KINDS = ["identity", "skill", "high_trust"] as const;
 export const REPORT_TARGETS = ["user", "job", "pairing", "review"] as const;
+export const TICKET_CATEGORIES = ["account", "job", "pairing", "payment", "safety", "other"] as const;
+export const TICKET_STATUSES = ["open", "waiting_staff", "waiting_user", "resolved", "closed"] as const;
 
 export const JOB_STATUSES = ["draft", "published", "filled", "cancelled", "expired"] as const;
 export const APPLICATION_STATUSES = ["pending", "selected", "rejected", "withdrawn"] as const;
@@ -44,6 +46,8 @@ export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 export type JobStatus = (typeof JOB_STATUSES)[number];
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 export type PairingStatus = (typeof PAIRING_STATUSES)[number];
+export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 // ---------------------------------------------------------------------------
 // Request schemas
@@ -192,6 +196,21 @@ export const reportResolveSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
+export const ticketCreateSchema = z.object({
+  subject: z.string().trim().min(3).max(120),
+  category: z.enum(TICKET_CATEGORIES),
+  body: z.string().trim().min(5, "Describe your issue").max(4000),
+});
+
+export const ticketMessageSchema = z.object({
+  body: z.string().trim().min(1).max(4000),
+});
+
+export const ticketResolveSchema = z.object({
+  status: z.enum(["resolved", "closed"]),
+  note: z.string().trim().max(1000).optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
@@ -335,6 +354,29 @@ export type Notification = {
 };
 
 export type BlockedUser = { username: string; createdAt: string };
+
+export type SupportTicketMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: { username: string; isStaff: boolean; isMe: boolean };
+};
+
+export type SupportTicketSummary = {
+  id: string;
+  subject: string;
+  category: TicketCategory;
+  status: TicketStatus;
+  createdAt: string;
+  updatedAt: string;
+  username?: string;
+  messageCount: number;
+  lastMessagePreview: string | null;
+};
+
+export type SupportTicket = SupportTicketSummary & {
+  messages: SupportTicketMessage[];
+};
 
 export type PublicProfile = {
   id: string;

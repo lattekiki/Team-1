@@ -1,7 +1,7 @@
-import { Flag, Scale, ScrollText, Search, ShieldCheck, Users } from "lucide-react";
+import { Flag, LifeBuoy, Scale, ScrollText, Search, ShieldCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import type { Role, VerificationKind } from "@team1/shared";
+import type { Role, SupportTicketSummary, VerificationKind } from "@team1/shared";
 import { btn, container, EmptyState, field, Rating, Spinner, StatusPill } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
@@ -13,6 +13,7 @@ import { useAction, useApi } from "../lib/useApi.ts";
 type Overview = {
   openReports: number;
   openDisputes: number;
+  openTickets: number;
   pendingVerifications: number;
   users: number;
   openJobs: number;
@@ -287,6 +288,40 @@ function DisputesQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged
   );
 }
 
+function TicketsQueue() {
+  const { t, fmt } = useI18n();
+  const res = useApi<{ tickets: SupportTicketSummary[] }>("/admin/tickets");
+
+  if (res.loading && !res.data) return <Spinner />;
+  if (!res.data?.tickets.length) return <EmptyState icon={LifeBuoy} title={t("noAdminTickets")} />;
+  return (
+    <div className="space-y-3">
+      {res.data.tickets.map((ticket) => {
+        const open = ["open", "waiting_staff", "waiting_user"].includes(ticket.status);
+        return (
+          <Link
+            key={ticket.id}
+            to={`/tickets/${ticket.id}`}
+            className={`block p-5 rounded-2xl border ${open ? "bg-white border-zinc-200 hover:border-zinc-400" : "bg-zinc-50 border-zinc-100"}`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-zinc-500">
+                <strong className="text-zinc-800">@{ticket.username}</strong> • {fmt.ticketCategory(ticket.category)} •{" "}
+                {fmt.timeAgo(ticket.updatedAt)}
+              </p>
+              <StatusPill tone={open ? (ticket.status === "waiting_user" ? "good" : "warn") : "neutral"}>
+                {fmt.ticketStatus(ticket.status)}
+              </StatusPill>
+            </div>
+            <p className="font-bold text-zinc-900 mt-2">{ticket.subject}</p>
+            {ticket.lastMessagePreview && <p className="text-sm text-zinc-600 mt-1 line-clamp-2">{ticket.lastMessagePreview}</p>}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 function UsersPanel({ canDecide, myId }: { canDecide: boolean; myId: string }) {
   const { t, fmt } = useI18n();
   const toast = useToast();
@@ -424,7 +459,7 @@ function AuditLog() {
   );
 }
 
-type Tab = "verification" | "reports" | "disputes" | "users" | "audit";
+type Tab = "verification" | "reports" | "disputes" | "tickets" | "users" | "audit";
 
 export function AdminPage() {
   const { user } = useAuth();
@@ -439,6 +474,7 @@ export function AdminPage() {
     { id: "verification", label: t("tabVerification"), icon: ShieldCheck, count: o?.pendingVerifications },
     { id: "reports", label: t("tabReports"), icon: Flag, count: o?.openReports },
     { id: "disputes", label: t("tabDisputes"), icon: Scale, count: o?.openDisputes },
+    { id: "tickets", label: t("tabTickets"), icon: LifeBuoy, count: o?.openTickets },
     { id: "users", label: t("tabUsers"), icon: Users },
     ...(isAdmin ? [{ id: "audit" as const, label: t("tabAudit"), icon: ScrollText }] : []),
   ];
@@ -446,6 +482,7 @@ export function AdminPage() {
     [t("adminPendingVerif"), o?.pendingVerifications],
     [t("adminOpenReports"), o?.openReports],
     [t("adminOpenDisputes"), o?.openDisputes],
+    [t("adminOpenTickets"), o?.openTickets],
     [t("adminUsers"), o?.users],
     [t("adminOpenJobs"), o?.openJobs],
     [t("adminActivePairings"), o?.activePairings],
@@ -460,7 +497,7 @@ export function AdminPage() {
           <p className="text-sm text-zinc-500 mt-1">{isAdmin ? t("adminSubtitleAdmin") : t("adminSubtitleSupport")}</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           {stats.map(([label, value]) => (
             <div key={label} className="p-4 rounded-2xl bg-white border border-zinc-200">
               <p className="text-2xl font-extrabold">{value ?? "–"}</p>
@@ -488,6 +525,7 @@ export function AdminPage() {
         {tab === "verification" && <VerificationQueue canDecide={isAdmin} onChanged={overview.reload} />}
         {tab === "reports" && <ReportsQueue canDecide={isAdmin} onChanged={overview.reload} />}
         {tab === "disputes" && <DisputesQueue canDecide={isAdmin} onChanged={overview.reload} />}
+        {tab === "tickets" && <TicketsQueue />}
         {tab === "users" && <UsersPanel canDecide={isAdmin} myId={user.id} />}
         {tab === "audit" && isAdmin && <AuditLog />}
       </div>

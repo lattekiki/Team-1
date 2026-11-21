@@ -43,10 +43,11 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - **File uploads**: verification takes a text note/reference only; no identity documents stored yet
 
 ### Deferred (Phase 2+)
-Real SMS, payment provider, document upload storage, distance/map search, support tickets, business/bulk jobs, all AI features, push/SMS notifications.
+Real SMS, payment provider, document upload storage, distance/map search, business/bulk jobs, all AI features, push/SMS notifications.
 
 ### Added after MVP journey
 - **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
+- **Support tickets**: users open threads (`/tickets`); staff reply and resolve from admin; in-app notifications on reply/status.
 
 ## 3. Repo layout
 
