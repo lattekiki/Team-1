@@ -24,10 +24,12 @@ export function localizeError(code: string, serverMessage: string | undefined, d
   return translateDynamic(`err_${code}`, serverMessage ?? translateDynamic("err_internal", ""));
 }
 
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+
 export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${API_BASE}/api${path}`, {
       method: options.method ?? (options.body === undefined ? "GET" : "POST"),
       credentials: "include",
       headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
@@ -49,7 +51,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
 export async function apiForm<T>(path: string, form: FormData): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, { method: "POST", credentials: "include", body: form });
+    res = await fetch(`${API_BASE}/api${path}`, { method: "POST", credentials: "include", body: form });
   } catch {
     throw new ApiRequestError(0, "network", localizeError("network", undefined, undefined));
   }
