@@ -40,6 +40,13 @@ const envSchema = z
     S3_SECRET_ACCESS_KEY: z.string().optional(),
     /** Optional custom endpoint for R2/MinIO (e.g. https://xxx.r2.cloudflarestorage.com). */
     S3_ENDPOINT: z.string().url().optional(),
+
+    /** Web Push (optional). Generate with: npx web-push generate-vapid-keys */
+    VAPID_PUBLIC_KEY: z.string().optional(),
+    VAPID_PRIVATE_KEY: z.string().optional(),
+    VAPID_SUBJECT: z.string().default("mailto:pilot@hojiigo.local"),
+    /** Also SMS high-priority alerts via OTP_PROVIDER (console logs when console). */
+    NOTIFY_SMS: boolish,
   })
   .superRefine((e, ctx) => {
     if (e.OTP_PROVIDER === "africastalking" && (!e.AT_USERNAME || !e.AT_API_KEY)) {

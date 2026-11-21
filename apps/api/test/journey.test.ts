@@ -255,6 +255,31 @@ describe("hard rules", () => {
     await apply().expect(201);
   });
 
+  it("lets a user save and remove a web push subscription", async () => {
+    const health = await request(app).get("/api/health").expect(200);
+    expect(health.body.push).toBe(true);
+    const vapid = await request(app).get("/api/push/vapid-public-key").expect(200);
+    expect(vapid.body.enabled).toBe(true);
+    expect(vapid.body.publicKey).toMatch(/^B/);
+
+    const user = await signUp("push_user");
+    const endpoint = "https://push.example.test/endpoint/push_user_1";
+    await user.agent
+      .post("/api/me/push-subscription")
+      .send({
+        endpoint,
+        keys: { p256dh: "BPcTestP256dhKeyValueForPushSubscriptionXX", auth: "authTestKey12" },
+      })
+      .expect(204);
+    expect((await user.agent.get("/api/me/push-subscription").expect(200)).body).toMatchObject({
+      enabled: true,
+      subscribed: true,
+      count: 1,
+    });
+    await user.agent.delete("/api/me/push-subscription").send({ endpoint }).expect(204);
+    expect((await user.agent.get("/api/me/push-subscription").expect(200)).body.subscribed).toBe(false);
+  });
+
   it("returns map coordinates on published jobs", async () => {
     const employer = await signUp("map_pin_boss");
     await employer.agent.patch("/api/me").send({ activeMode: "employer" }).expect(200);

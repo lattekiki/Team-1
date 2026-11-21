@@ -37,6 +37,9 @@ Use `off` to settle only outside the app, or `manual` to record cash/bank paymen
 Verification documents default to local disk (`STORAGE_BACKEND=local`). Set `STORAGE_BACKEND=s3` plus
 `S3_BUCKET` / `S3_REGION` / keys (and optional `S3_ENDPOINT` for R2 or MinIO) to store them in the cloud.
 
+Browser push: set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (see `.env.example`, or `npx web-push generate-vapid-keys`),
+then enable push on the Notifications page. Optional `NOTIFY_SMS=true` also texts high-priority alerts via `OTP_PROVIDER`.
+
 | Demo account | Phone | Role |
 |---|---|---|
 | `admin` | `0911000001` | Admin console |

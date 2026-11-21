@@ -14,6 +14,8 @@ import { ticketsRouter } from "./modules/tickets.ts";
 import { paymentsConfig } from "./lib/payments.ts";
 import { otpProvider } from "./lib/otp.ts";
 import { objectStore } from "./lib/storage.ts";
+import { pushConfigured } from "./lib/push.ts";
+import { env } from "./env.ts";
 
 export function createApp() {
   const app = express();
@@ -43,6 +45,8 @@ export function createApp() {
       otpProvider: otpProvider.name,
       payments: paymentsConfig(),
       storage: objectStore.name,
+      push: pushConfigured,
+      notifySms: Boolean(env.NOTIFY_SMS),
     });
   });
 

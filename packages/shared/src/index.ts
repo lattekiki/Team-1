@@ -253,6 +253,14 @@ export const ticketResolveSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
+export const pushSubscribeSchema = z.object({
+  endpoint: z.string().url().max(2048),
+  keys: z.object({
+    p256dh: z.string().min(10).max(512),
+    auth: z.string().min(8).max(256),
+  }),
+});
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------

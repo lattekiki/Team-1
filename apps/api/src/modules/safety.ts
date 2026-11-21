@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  pushSubscribeSchema,
   reportCreateSchema,
   verificationCreateSchema,
   type BlockedUser,
@@ -11,6 +12,7 @@ import { pool, withTransaction, type Db } from "../db/pool.ts";
 import { currentUser, requireAuth, type AuthUser } from "../lib/auth.ts";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { idParam } from "../lib/http.ts";
+import { pushConfigured, pushPublicKey } from "../lib/push.ts";
 import { LocalObjectStore, objectStore, type ObjectStore } from "../lib/storage.ts";
 import {
   MAX_VERIFICATION_DOCS,
@@ -235,6 +237,46 @@ safetyRouter.delete("/users/:username/block", requireAuth, async (req, res) => {
   const target = await userByUsername(req.params.username);
   await pool.query("delete from user_blocks where blocker_id = $1 and blocked_id = $2", [me.id, target.id]);
   res.status(204).end();
+});
+
+safetyRouter.get("/push/vapid-public-key", (_req, res) => {
+  const key = pushPublicKey();
+  res.json({ enabled: pushConfigured, publicKey: key });
+});
+
+safetyRouter.post("/me/push-subscription", requireAuth, async (req, res) => {
+  if (!pushConfigured) throw badRequest("Web Push is not configured on this server", "push_disabled");
+  const me = currentUser(req);
+  const body = pushSubscribeSchema.parse(req.body);
+  await pool.query(
+    `insert into push_subscriptions (user_id, endpoint, p256dh, auth, user_agent)
+     values ($1, $2, $3, $4, $5)
+     on conflict (endpoint) do update
+       set user_id = excluded.user_id,
+           p256dh = excluded.p256dh,
+           auth = excluded.auth,
+           user_agent = excluded.user_agent,
+           updated_at = now()`,
+    [me.id, body.endpoint, body.keys.p256dh, body.keys.auth, String(req.headers["user-agent"] ?? "").slice(0, 300)],
+  );
+  res.status(204).end();
+});
+
+safetyRouter.delete("/me/push-subscription", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint : "";
+  if (!endpoint) throw badRequest("endpoint is required");
+  await pool.query("delete from push_subscriptions where user_id = $1 and endpoint = $2", [me.id, endpoint]);
+  res.status(204).end();
+});
+
+safetyRouter.get("/me/push-subscription", requireAuth, async (req, res) => {
+  const me = currentUser(req);
+  const { rows } = await pool.query(
+    "select count(*)::int as n from push_subscriptions where user_id = $1",
+    [me.id],
+  );
+  res.json({ enabled: pushConfigured, subscribed: rows[0].n > 0, count: rows[0].n });
 });
 
 safetyRouter.get("/notifications", requireAuth, async (req, res) => {

@@ -10,6 +10,10 @@ export default defineConfig({
       PAYMENTS_MODE: "mock_escrow",
       OTP_PROVIDER: "console",
       STORAGE_BACKEND: "local",
+      VAPID_PUBLIC_KEY:
+        "BCArfHXexFfEUBVRdfqh2zkirDK0wzDlinNBDuBpdtQZQFd3RllojnequFb2Z8Frk5YvD7hbVBSedaKcSLATYdI",
+      VAPID_PRIVATE_KEY: "sdGRG9KMYsyOykycHIsGOfYmIUf1YkJD7EtjWmzQ0j4",
+      VAPID_SUBJECT: "mailto:test@hojiigo.local",
     },
     globalSetup: ["./test/global-setup.ts"],
     fileParallelism: false,
