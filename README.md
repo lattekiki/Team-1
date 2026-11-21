@@ -7,8 +7,8 @@ Product spec: `SRS.docx`. Build plan, scope, data model and API: [`docs/PLAN.md`
 
 npm workspaces monorepo, TypeScript throughout.
 
-- `apps/web` — React + Vite (http://localhost:5173, proxies `/api` to the API)
-- `apps/api` — Node + Express 5 (http://localhost:4000), PostgreSQL via `pg`, SQL migrations in `apps/api/migrations`
+- `frontend` — React + Vite (http://localhost:5173, proxies `/api` to the API)
+- `backend` — Node + Express 5 (http://localhost:4000), PostgreSQL via `pg`, SQL migrations in `backend/migrations`
 - `packages/shared` — Zod schemas and enums used by both
 
 ## Setup
@@ -17,7 +17,7 @@ Requires Node 22+ and PostgreSQL 16+ (local service, or `docker compose up -d` f
 
 ```powershell
 npm install
-Copy-Item apps/api/.env.example apps/api/.env   # then set your Postgres password in DATABASE_URL
+Copy-Item backend/.env.example backend/.env   # then set your Postgres password in DATABASE_URL
 npm run db:migrate                               # creates the database if missing, applies migrations
 npm run db:seed                                  # demo users and six published demo jobs
 npm run dev                                      # API + web together
@@ -32,7 +32,7 @@ Employers can tap **Suggest from title** when posting; applicant lists show the 
 ## Sign-in during development
 
 Default `OTP_PROVIDER=console` logs the code and returns it as `devCode` for the login UI. Set
-`OTP_PROVIDER=africastalking` or `twilio` (plus API keys in `apps/api/.env`) to send real SMS;
+`OTP_PROVIDER=africastalking` or `twilio` (plus API keys in `backend/.env`) to send real SMS;
 `devCode` is then withheld unless `OTP_EXPOSE_DEV_CODE=true`.
 
 Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow`, which only records the payment. No money is transferred until Chapa is connected. The employer pays first (job pay plus 2.5%); phone numbers stay hidden until that record is held; an admin confirms the work is done, then records the worker's payout (job pay minus 2.5%). HojiiGO keeps 5%. Signed-in people can message an admin from Contact us; the same page still takes organization monthly-agreement requests.

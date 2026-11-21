@@ -33,7 +33,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 - Role-based access: `user` / `support` / `admin`, enforced in the API (§5, §21)
 - Audit log for admin actions (§19)
 - Seed data + automated API test of the DoD journey (§35)
-- English, Afaan Oromoo and Amharic UI (typed dictionaries in `apps/web/src/lib/locales`; API errors carry stable codes the client translates)
+- English, Afaan Oromoo and Amharic UI (typed dictionaries in `frontend/src/lib/locales`; API errors carry stable codes the client translates)
 - Block user: either side can block; blocked pairs are hidden from job browse/applicant lists and cannot apply, select, or rebook each other; pending applications between them are withdrawn/rejected; unblock from the public profile or the blocked list on `/profile`
 - Saved jobs (favorites): bookmark on job cards and job detail; list under worker dashboard (`GET /me/favorites`)
 
@@ -71,21 +71,20 @@ None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
 ## 3. Repo layout
 
 ```
-apps/
-  api/                Express API (port 4000)
-    migrations/       numbered .sql files, applied by src/db/migrate.ts
-    src/
-      db/             pool, migrate, seed
-      modules/        auth, profiles, jobs, applications, pairings, reviews,
+backend/              Express API (port 4000)
+  migrations/         numbered .sql files, applied by src/db/migrate.ts
+  src/
+    db/               pool, migrate, seed
+    modules/          auth, profiles, jobs, applications, pairings, reviews,
                       rebookings, reports, verification, notifications, admin
-      lib/            errors, auth middleware, otp provider, audit
-  web/                React + Vite (port 5173, proxies /api -> 4000)
-    src/
-      pages/          one file per route
-      components/
-      lib/            api client, auth context, i18n strings
+    lib/              errors, auth middleware, otp provider, audit
+frontend/             React + Vite (port 5173, proxies /api -> 4000)
+  src/
+    pages/            one file per route
+    components/
+    lib/              api client, auth context, i18n strings
 packages/
-  shared/             Zod schemas + enums shared by api and web
+  shared/             Zod schemas + enums shared by backend and frontend
 docs/PLAN.md
 ```
 
