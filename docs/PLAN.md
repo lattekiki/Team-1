@@ -39,7 +39,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 
 ### Stubbed / pluggable providers
 - **OTP/SMS**: `OtpProvider` with `console` (default), `africastalking`, or `twilio` via `OTP_PROVIDER`. Live SMS never returns `devCode` unless `OTP_EXPOSE_DEV_CODE=true`.
-- **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow|chapa`. Manual/mock track `pending → held → paid|refunded`. **Chapa** opens hosted checkout, confirms via verify/webhook, refunds via Chapa API, and transfers to worker bank details when set (otherwise marks paid for merchant-balance payout). Legal review still required before a live pilot (SRS §12).
+- **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow|chapa`. Manual/mock track `pending → held → paid|refunded`. In `mock_escrow` and `chapa` the employer pays HojiiGO first (phone stays hidden until the payment is `held` or `paid`), work cannot start until then, and only an admin releases funds after both sides confirm completion. **Chapa** opens hosted checkout, confirms via verify/webhook, refunds via Chapa API, and transfers to worker bank details when set. Legal review still required before a live pilot (SRS §12).
 
 ### Deferred (Phase 2+)
 None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
@@ -61,6 +61,9 @@ None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
 - **Generative match blurbs**: rule-based one-liners always; when `LLM_PROVIDER=openai`, an optional batch call may reorder **already-eligible** jobs/applicants and rewrite blurbs — never drops ids, never uses rating as VIP eligibility.
 - **Writing assist**: `POST /assist` drafts job descriptions and apply pitches. `LLM_PROVIDER=template` (default, no API) or `openai` (OpenAI-compatible; falls back to template). `off` hides the buttons.
 - **VIP production gate**: `VIP_CATEGORIES` unset means household/childcare (`vip`) categories are hidden and cannot be posted or applied to when `NODE_ENV=production`.
+- **Platform hold**: when payments are `mock_escrow` or `chapa`, contact stays hidden until funds are held, and `POST /admin/pairings/:id/payment/release` is the only release (both sides must have confirmed completion). Employer refund is only while the pairing is still `confirmed`.
+- **Organization requests**: public `POST /inquiries` (example agreement 5,000 ETB/month) lands in the admin Organizations tab. Admin posts the jobs with the existing bulk poster; nothing is auto-posted.
+- **Active worker**: 30 completed jobs shows a badge and a prompt to request VIP. It does not set `high_trust_approved`.
 
 ## 3. Repo layout
 
@@ -118,7 +121,7 @@ docs/PLAN.md
    - `ordinary`: active account with a worker profile
    - `skilled`: also at least one listed skill
    - `vip`: also `identity_verified` **and** `high_trust_approved` (admin decision). Rating never substitutes.
-2. **Contact privacy** (§11): the other party's `phone` appears only in the `contact` field of a pairing response, only to the two parties, and only when the pairing is `confirmed`, `in_progress`, or `completed` (otherwise `contact` is `null`).
+2. **Contact privacy** (§11): the other party's `phone` appears only in the `contact` field of a pairing response, only to the two parties, and only when the pairing is `confirmed`, `in_progress`, `completed`, or `disputed`. When `PAYMENTS_MODE` is `mock_escrow` or `chapa`, the phone also stays hidden until payment is `held` or `paid`.
 3. **Reviews** only for `completed` pairings, by a party to the pairing, once each (DB unique constraint).
 4. **Admin routes** require `role = admin` (support gets read-only report access); every admin write goes to `audit_logs`.
 5. New workers with zero reviews are never hidden from applicant lists (§15).
@@ -135,13 +138,14 @@ docs/PLAN.md
 | assist | `GET /assist/config`, `POST /assist` (job_description / apply_message) |
 | applications | `POST /jobs/:id/applications`, `GET /jobs/:id/applications` (owner), `GET /me/applicants` (all my jobs), `POST /applications/:id/withdraw`, `POST /applications/:id/select`, `POST /applications/:id/reject`, `GET /me/applications` |
 | pairings | `GET /me/pairings?role=`, `GET /pairings/:id`, `POST /pairings/:id/accept`, `POST /pairings/:id/decline`, `POST /pairings/:id/start`, `POST /pairings/:id/complete`, `POST /pairings/:id/cancel`, `POST /pairings/:id/payment/{hold,verify,release,mark-paid,refund}` |
+| inquiries | `GET /inquiries/config`, `POST /inquiries`, `GET /admin/inquiries`, `POST /admin/inquiries/:id/status` |
 | payments | `GET /payments/config` (mode + disclaimer); Chapa `GET /payments/chapa/callback`, `POST /payments/webhooks/chapa` |
 | reviews | `POST /pairings/:id/reviews` (public reviews are part of `GET /users/:username`) |
 | rebookings | `POST /pairings/:id/rebook`, `GET /me/rebookings`, `POST /rebookings/:id/accept`, `POST /rebookings/:id/decline` |
 | reports | `POST /reports` |
 | verification | `POST /verification`, `GET /me/verification` |
 | notifications | `GET /notifications`, `POST /notifications/read` |
-| admin | `GET /admin/overview`, `GET /admin/reports`, `POST /admin/reports/:id/resolve`, `GET /admin/verification`, `POST /admin/verification/:id/approve`, `POST /admin/verification/:id/reject`, `GET /admin/users?q=`, `POST /admin/users/:id/high-trust`, `POST /admin/users/:id/suspend`, `GET /admin/audit` |
+| admin | `GET /admin/overview`, `GET /admin/payments`, `POST /admin/pairings/:id/payment/release`, `GET /admin/reports`, `POST /admin/reports/:id/resolve`, `GET /admin/verification`, `POST /admin/verification/:id/approve`, `POST /admin/verification/:id/reject`, `GET /admin/users?q=`, `POST /admin/users/:id/high-trust`, `POST /admin/users/:id/suspend`, `GET /admin/audit` |
 
 Errors are always `{ "error": { "code": string, "message": string, "details"?: unknown } }`.
 

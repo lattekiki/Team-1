@@ -216,6 +216,8 @@ export function createPaymentProvider(): PaymentProvider {
 export const paymentProvider = createPaymentProvider();
 export const paymentsMode: PaymentMode = env.PAYMENTS_MODE;
 export const paymentsEnabled = paymentsMode !== "off";
+/** Employer pays HojiiGO first; only an admin releases funds to the worker. */
+export const platformHoldsFunds = paymentsMode === "mock_escrow" || paymentsMode === "chapa";
 
 /** Initial payment_status when a pairing is created. */
 export function initialPaymentStatus(): PaymentStatus {
@@ -255,14 +257,15 @@ export function paymentsConfig() {
     enabled: paymentsEnabled,
     escrow,
     hostedCheckout: paymentsMode === "chapa",
+    platformHolds: platformHoldsFunds,
     provider: paymentProvider.name,
     disclaimer:
       paymentsMode === "mock_escrow"
-        ? "Simulated escrow for testing only — no real money is held."
+        ? "Simulated escrow for testing only — no real money moves. An admin releases the record after both sides confirm."
         : paymentsMode === "manual"
           ? "Record payments you settle directly. HojiiGO does not hold funds."
           : paymentsMode === "chapa"
-            ? "Pay with Chapa (Telebirr, cards, banks). Funds settle to the HojiiGO merchant account until released to the worker."
+            ? "Pay with Chapa (Telebirr, cards, banks). Funds stay with HojiiGO until an admin releases them after both sides confirm the work."
             : "Platform payments are off — settle directly with the other party.",
   };
 }

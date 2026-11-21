@@ -14,6 +14,7 @@ type PaymentsConfig = {
   enabled: boolean;
   escrow: boolean;
   hostedCheckout?: boolean;
+  platformHolds?: boolean;
   disclaimer: string;
 };
 
@@ -70,6 +71,8 @@ export function PairingPage() {
   const active = ["pending_confirmation", "confirmed", "in_progress", "completed"].includes(p.status);
   const current = stepIndex(p);
   const hosted = Boolean(payCfg.data?.hostedCheckout);
+  const platformHolds = Boolean(payCfg.data?.platformHolds);
+  const fundsReady = p.paymentStatus === "held" || p.paymentStatus === "paid";
 
   const act = async (action: string, message: string) => {
     const ok = await run(() => api(`/pairings/${p.id}/${action}`, { method: "POST" }), (m) => toast(m, "error"));
@@ -170,11 +173,13 @@ export function PairingPage() {
                   {t("contactHidden")}
                 </div>
                 <p className="text-xs text-zinc-500 mt-1">
-                  {p.status === "pending_confirmation"
-                    ? isWorker
-                      ? t("contactHiddenWorker")
-                      : t("contactHiddenEmployer", { username })
-                    : t("contactNotShared")}
+                  {platformHolds && ["confirmed", "in_progress"].includes(p.status) && !fundsReady
+                    ? t("contactHiddenUntilPaid")
+                    : p.status === "pending_confirmation"
+                      ? isWorker
+                        ? t("contactHiddenWorker")
+                        : t("contactHiddenEmployer", { username })
+                      : t("contactNotShared")}
                 </p>
               </>
             )}
@@ -239,6 +244,7 @@ export function PairingPage() {
                   </>
                 )}
                 {!isWorker &&
+                  !platformHolds &&
                   p.paymentStatus === "held" &&
                   ["in_progress", "completed"].includes(p.status) && (
                     <button
@@ -249,7 +255,10 @@ export function PairingPage() {
                       {t("paymentRelease")}
                     </button>
                   )}
-                {!isWorker && p.paymentStatus === "held" && (
+                {platformHolds && p.paymentStatus === "held" && (
+                  <p className="text-xs text-zinc-500 w-full">{t("paymentAdminReleases")}</p>
+                )}
+                {!isWorker && p.paymentStatus === "held" && p.status === "confirmed" && (
                   <button
                     disabled={busy}
                     onClick={() => act("payment/refund", t("toastPaymentRefunded"))}
@@ -259,6 +268,7 @@ export function PairingPage() {
                   </button>
                 )}
                 {!hosted &&
+                  !platformHolds &&
                   ["pending", "held", "failed"].includes(p.paymentStatus) &&
                   ["confirmed", "in_progress", "completed"].includes(p.status) && (
                     <button
@@ -296,13 +306,16 @@ export function PairingPage() {
               <p className="text-xs text-zinc-500">{t("waitingConfirm", { username })}</p>
             )}
 
-            {p.status === "confirmed" && (
+            {p.status === "confirmed" && platformHolds && !fundsReady && (
+              <p className="text-xs text-zinc-500">{t("payBeforeWork")}</p>
+            )}
+            {p.status === "confirmed" && (!platformHolds || fundsReady) && (
               <button disabled={busy} onClick={() => act("start", t("toastStarted"))} className={btn.light}>
                 {t("markStarted")}
               </button>
             )}
 
-            {(p.status === "confirmed" || p.status === "in_progress") &&
+            {(p.status === "confirmed" || p.status === "in_progress") && (!platformHolds || fundsReady) &&
               (myCompletion ? (
                 <p className="text-xs text-zinc-500">
                   {t("youConfirmedCompletion", { date: fmt.date(myCompletion), username })}

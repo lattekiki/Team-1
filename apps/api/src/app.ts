@@ -6,6 +6,7 @@ import { errorHandler, notFoundHandler } from "./lib/errors.ts";
 import { adminRouter } from "./modules/admin.ts";
 import { applicationsRouter } from "./modules/applications.ts";
 import { authRouter } from "./modules/auth.ts";
+import { inquiriesRouter } from "./modules/inquiries.ts";
 import { jobsRouter } from "./modules/jobs.ts";
 import { pairingsRouter } from "./modules/pairings.ts";
 import { paymentsRouter } from "./modules/payments.ts";
@@ -69,6 +70,7 @@ export function createApp() {
   api.use(loadUser);
   api.use(authRouter);
   api.use(profilesRouter);
+  api.use(inquiriesRouter);
   api.use(jobsRouter);
   api.use(assistRouter);
   api.use(applicationsRouter);

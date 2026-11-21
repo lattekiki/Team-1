@@ -72,6 +72,9 @@ function Header() {
       <Link to="/#how-it-works" className="whitespace-nowrap hover:text-zinc-900 transition-colors">
         {t("navHowItWorks")}
       </Link>
+      <NavLink to="/contact" className={navClass}>
+        {t("navContact")}
+      </NavLink>
       {user && (
         <NavLink to="/dashboard" className={(s) => `${navClass(s)} flex items-center gap-1.5`}>
           {user.activeMode === "employer" ? t("employerDashTitle") : t("navMyActivity")}
@@ -256,7 +259,12 @@ export function Layout({ children }: { children: ReactNode }) {
               Hojii<span className="text-emerald-400">GO</span>
             </span>
           </div>
-          <p className="text-xs text-center sm:text-right">{t("footerNote")}</p>
+          <div className="flex flex-col items-center sm:items-end gap-1">
+            <Link to="/contact" className="text-xs font-semibold text-white hover:text-emerald-300">
+              {t("navContact")}
+            </Link>
+            <p className="text-xs text-center sm:text-right">{t("footerNote")}</p>
+          </div>
         </div>
       </footer>
     </div>

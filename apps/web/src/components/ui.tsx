@@ -125,7 +125,11 @@ export function StatusPill({ children, tone = "neutral" }: { children: ReactNode
     bad: "bg-red-50 text-red-700 border-red-200",
     dark: "bg-emerald-500/20 text-emerald-300 border-emerald-400/30",
   };
-  return <span className={`px-3 py-1 rounded-full text-xs font-bold border whitespace-nowrap ${tones[tone]}`}>{children}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border whitespace-nowrap ${tones[tone]}`}>
+      {children}
+    </span>
+  );
 }
 
 export function Modal({

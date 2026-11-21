@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
-import type { Applicant, JobSummary, Me, MyApplication, Pairing, Rebooking } from "@team1/shared";
+import { ACTIVE_WORKER_JOBS, type Applicant, type JobSummary, type Me, type MyApplication, type Pairing, type Rebooking } from "@team1/shared";
 import { ApplyModal } from "../components/ApplyModal.tsx";
 import { JobCard } from "../components/JobCard.tsx";
 import { RebookModal } from "../components/Modals.tsx";
@@ -99,7 +99,21 @@ function ReputationBanner({ user, hasSkills }: { user: Me; hasSkills: boolean })
             <span className="text-xs text-zinc-300">{tp("completedJobs", user.completedJobs)}</span>
             {user.identityVerified && <StatusPill tone="dark">{t("badgeIdVerified")}</StatusPill>}
             {user.highTrustApproved && <StatusPill tone="dark">{t("badgeVipApproved")}</StatusPill>}
+            {user.completedJobs >= ACTIVE_WORKER_JOBS && (
+              <StatusPill tone="dark">
+                <Award className="w-3 h-3" />
+                {t("activeWorkerBadge")}
+              </StatusPill>
+            )}
           </div>
+          {user.completedJobs >= ACTIVE_WORKER_JOBS && !user.highTrustApproved && (
+            <p className="text-xs text-zinc-300 mt-3 max-w-xl">
+              {t("activeWorkerPrompt", { count: String(user.completedJobs) })}{" "}
+              <Link to="/profile" className="underline font-semibold text-white">
+                {t("activeWorkerRequest")}
+              </Link>
+            </p>
+          )}
         </div>
         <Link to="/profile" className="self-start md:self-auto px-4 py-2.5 rounded-xl bg-white text-zinc-900 text-xs font-bold">
           {t("editProfileSkills")}

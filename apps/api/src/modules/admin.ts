@@ -6,6 +6,7 @@ import { currentUser, requireRole } from "../lib/auth.ts";
 import { idParam } from "../lib/http.ts";
 import { conflict, notFound } from "../lib/errors.ts";
 import { audit, notify } from "../lib/events.ts";
+import { paymentProvider, recordPaymentEvent } from "../lib/payments.ts";
 import { reputationFor } from "../lib/stats.ts";
 
 export const adminRouter = Router();
@@ -23,7 +24,9 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
        (select count(*) from users)::int as users,
        (select count(*) from jobs where status = 'published')::int as open_jobs,
        (select count(*) from pairings where status in ('confirmed', 'in_progress'))::int as active_pairings,
-       (select count(*) from pairings where status = 'completed')::int as completed_pairings`,
+       (select count(*) from pairings where status = 'completed')::int as completed_pairings,
+       (select count(*) from pairings where payment_status = 'held' and status = 'completed')::int as payouts_ready,
+       (select count(*) from organization_inquiries where status = 'new')::int as new_inquiries`,
   );
   const r = rows[0];
   res.json({
@@ -36,8 +39,97 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
       openJobs: r.open_jobs,
       activePairings: r.active_pairings,
       completedPairings: r.completed_pairings,
+      payoutsReady: r.payouts_ready,
+      newInquiries: r.new_inquiries,
     },
   });
+});
+
+adminRouter.get("/admin/payments", staff, async (_req, res) => {
+  const { rows } = await pool.query(
+    `select p.id, p.status, p.payment_status, p.payment_amount_etb, p.updated_at,
+            j.title, wu.username as worker_username, eu.username as employer_username
+     from pairings p
+     join jobs j on j.id = p.job_id
+     join users wu on wu.id = p.worker_id
+     join users eu on eu.id = p.employer_id
+     where p.payment_status in ('pending', 'held', 'paid')
+     order by (p.payment_status = 'held' and p.status = 'completed') desc, p.updated_at desc
+     limit 80`,
+  );
+  res.json({
+    payments: rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      paymentStatus: r.payment_status,
+      amountEtb: r.payment_amount_etb != null ? Number(r.payment_amount_etb) : null,
+      title: r.title,
+      workerUsername: r.worker_username,
+      employerUsername: r.employer_username,
+      updatedAt: r.updated_at,
+    })),
+  });
+});
+
+adminRouter.post("/admin/pairings/:id/payment/release", adminOnly, async (req, res) => {
+  const me = currentUser(req);
+  await withTransaction(async (db) => {
+    const { rows } = await db.query(
+      `select p.*, j.title
+       from pairings p join jobs j on j.id = p.job_id
+       where p.id = $1 for update of p`,
+      [idParam(req)],
+    );
+    const p = rows[0];
+    if (!p) throw notFound("Pairing not found");
+    if (p.payment_status !== "held") throw conflict("Nothing is held to release", "payment_wrong_status");
+    if (p.status !== "completed") {
+      throw conflict("Release payment after both sides confirm the work is done", "pairing_wrong_status");
+    }
+    const amount = Number(p.payment_amount_etb ?? 0);
+    const payout = await db.query(
+      `select payout_account_name, payout_account_number, payout_bank_code
+       from worker_profiles where user_id = $1`,
+      [p.worker_id],
+    );
+    const row = payout.rows[0];
+    const workerPayout =
+      row && row.payout_account_number && row.payout_bank_code
+        ? {
+            accountName: String(row.payout_account_name || ""),
+            accountNumber: String(row.payout_account_number),
+            bankCode: Number(row.payout_bank_code),
+          }
+        : null;
+    const released = await paymentProvider.release({
+      pairingId: p.id,
+      amountEtb: amount,
+      externalId: p.payment_external_id,
+      workerPayout,
+    });
+    await db.query(
+      `update pairings set payment_status = 'paid', payment_paid_at = now(),
+         payment_external_id = coalesce($2, payment_external_id), updated_at = now()
+       where id = $1`,
+      [p.id, released.externalId],
+    );
+    await recordPaymentEvent(db, {
+      pairingId: p.id,
+      action: "release",
+      amountEtb: amount,
+      externalId: released.externalId ?? p.payment_external_id,
+      actorId: me.id,
+      note: "Admin release after both sides confirmed",
+    });
+    await audit(db, me.id, "payment.release", { type: "pairing", id: p.id }, { amount });
+    await notify(db, p.worker_id, "payment_released", {
+      pairingId: p.id,
+      title: p.title,
+      amount,
+      provider: paymentProvider.name,
+    });
+  });
+  res.json({ ok: true });
 });
 
 adminRouter.get("/admin/reports", staff, async (req, res) => {

@@ -23,7 +23,7 @@ npm run db:seed                                  # demo users and six published 
 npm run dev                                      # API + web together
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173. Organizations that want many workers on a monthly agreement use **Contact us** (`/contact`); requests show on the admin Organizations tab (example fee 5,000 ETB/month). Workers who finish 30 jobs get an Active worker badge and can request VIP; an admin still decides.
 
 Signed-in workers see **suggested jobs** on Home and Dashboard (skills, area, similar completed work).
 Employers can tap **Suggest from title** when posting; applicant lists show the same fit chips without hiding new workers.
@@ -35,7 +35,7 @@ Default `OTP_PROVIDER=console` logs the code and returns it as `devCode` for the
 `OTP_PROVIDER=africastalking` or `twilio` (plus API keys in `apps/api/.env`) to send real SMS;
 `devCode` is then withheld unless `OTP_EXPOSE_DEV_CODE=true`.
 
-Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow` (simulated hold/release — no real money).
+Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow` (simulated hold — no real money). The employer pays first; phone numbers stay hidden until that hold; an admin pays the worker only after both sides confirm the job is done.
 Use `off` to settle only outside the app, `manual` to record cash/bank payments without a hold step, or
 `chapa` with `CHAPA_SECRET_KEY` for hosted Chapa checkout (Telebirr/cards/banks). Set `PUBLIC_API_URL` so
 Chapa can reach `/api/payments/chapa/callback` and `/api/payments/webhooks/chapa`.

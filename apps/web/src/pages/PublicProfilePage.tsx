@@ -1,6 +1,6 @@
-import { Ban, Briefcase, MapPin, Star } from "lucide-react";
+import { Award, Ban, Briefcase, MapPin, Star } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
-import type { PublicProfile } from "@team1/shared";
+import { ACTIVE_WORKER_JOBS, type PublicProfile } from "@team1/shared";
 import { ReportButton } from "../components/Modals.tsx";
 import { btn, container, EmptyState, ErrorBox, Rating, Spinner, StatusPill } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
@@ -66,6 +66,12 @@ export function PublicProfilePage() {
                 <span className="text-xs text-zinc-300">{tp("completedJobs", p.completedJobs)}</span>
                 {p.identityVerified && <StatusPill tone="dark">{t("badgeIdVerified")}</StatusPill>}
                 {p.highTrustApproved && <StatusPill tone="dark">{t("badgeVipApproved")}</StatusPill>}
+                {p.completedJobs >= ACTIVE_WORKER_JOBS && (
+                  <StatusPill tone="dark">
+                    <Award className="w-3 h-3" />
+                    {t("activeWorkerBadge")}
+                  </StatusPill>
+                )}
               </div>
             </div>
           </div>

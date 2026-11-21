@@ -103,7 +103,11 @@ describe("Definition of Done journey (SRS section 35)", () => {
 
     const accepted = await worker.agent.post(`/api/pairings/${pairingId}/accept`).expect(200);
     expect(accepted.body.pairing.status).toBe("confirmed");
-    expect(accepted.body.pairing.contact).toEqual({ phone: employer.phone });
+    expect(accepted.body.pairing.contact).toBeNull();
+
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(200);
+    const unlocked = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
+    expect(unlocked.body.pairing.contact).toEqual({ phone: employer.phone });
 
     const employerView = await employer.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(employerView.body.pairing.contact).toEqual({ phone: worker.phone });
@@ -464,6 +468,7 @@ describe("hard rules", () => {
       await employer.agent.post(`/api/applications/${apps.body.applicants[0].id}/select`).expect(200)
     ).body.pairingId as string;
     await worker.agent.post(`/api/pairings/${pairingId}/accept`).expect(200);
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(200);
     await worker.agent.post(`/api/pairings/${pairingId}/start`).expect(200);
 
     const disputed = await worker.agent
@@ -611,7 +616,7 @@ describe("hard rules", () => {
 
   it("tracks mock escrow hold, release, and refund on a pairing", async () => {
     const cfg = await request(app).get("/api/payments/config").expect(200);
-    expect(cfg.body).toMatchObject({ mode: "mock_escrow", enabled: true, escrow: true });
+    expect(cfg.body).toMatchObject({ mode: "mock_escrow", enabled: true, escrow: true, platformHolds: true });
 
     const employer = await signUp("pay_boss");
     const worker = await signUp("pay_hand");
@@ -634,14 +639,24 @@ describe("hard rules", () => {
     await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(409); // still pending_confirmation
     await worker.agent.post(`/api/pairings/${pairingId}/accept`).expect(200);
 
+    const hidden = await employer.agent.get(`/api/pairings/${pairingId}`).expect(200);
+    expect(hidden.body.pairing.contact).toBeNull();
+
     await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(200);
     pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.paymentStatus).toBe("held");
     expect(pairing.body.pairing.paymentAmountEtb).toBe(650);
+    expect(pairing.body.pairing.contact).toEqual({ phone: employer.phone });
 
-    await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(409); // not started
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(403);
     await employer.agent.post(`/api/pairings/${pairingId}/start`).expect(200);
-    await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(200);
+    await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(403);
+    const payer = await signUp("pay_admin");
+    await pool.query("update users set role = 'admin' where id = $1", [payer.id]);
+    await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(409);
+    await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
+    await worker.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
+    await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(200);
     pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.paymentStatus).toBe("paid");
 
@@ -657,6 +672,29 @@ describe("hard rules", () => {
     await employer.agent.post(`/api/pairings/${p2}/payment/hold`).expect(200);
     await employer.agent.post(`/api/pairings/${p2}/payment/refund`).expect(200);
     expect((await employer.agent.get(`/api/pairings/${p2}`).expect(200)).body.pairing.paymentStatus).toBe("refunded");
+  });
+
+  it("stores an organization inquiry for an admin to follow up", async () => {
+    const created = await request(app)
+      .post("/api/inquiries")
+      .send({
+        organizationName: "Jimma City Office",
+        contactName: "Sara Bekele",
+        phone: "0911222333",
+        message: "We need many workers each month under an agreement.",
+        workersNeeded: 12,
+      })
+      .expect(201);
+    expect(created.body.inquiry.status).toBe("new");
+    const admin = await signUp("org_admin");
+    await pool.query("update users set role = 'admin' where id = $1", [admin.id]);
+    const list = await admin.agent.get("/api/admin/inquiries").expect(200);
+    const row = list.body.inquiries.find((i: { id: string }) => i.id === created.body.inquiry.id);
+    expect(row.monthlyEtb).toBe(5000);
+    expect(row.workersNeeded).toBe(12);
+    await admin.agent.post(`/api/admin/inquiries/${row.id}/status`).send({ status: "in_talks" }).expect(200);
+    const overview = await admin.agent.get("/api/admin/overview").expect(200);
+    expect(overview.body.overview).toHaveProperty("newInquiries");
   });
 
   it("does not let employers apply to their own jobs", async () => {

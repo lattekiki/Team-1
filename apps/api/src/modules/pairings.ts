@@ -21,6 +21,7 @@ import {
   initialPaymentStatus,
   paymentProvider,
   paymentsEnabled,
+  platformHoldsFunds,
   recordPaymentEvent,
   type PaymentStatus,
 } from "../lib/payments.ts";
@@ -53,7 +54,9 @@ type ReviewRow = { pairing_id: string; reviewer_id: string; overall: number; bod
 
 function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
   const myRole = r.worker_id === viewerId ? "worker" : "employer";
-  const contactVisible = (CONTACT_VISIBLE_PAIRING_STATUSES as readonly string[]).includes(r.status);
+  const statusShowsContact = (CONTACT_VISIBLE_PAIRING_STATUSES as readonly string[]).includes(r.status);
+  const fundsReady = !platformHoldsFunds || r.payment_status === "held" || r.payment_status === "paid";
+  const contactVisible = statusShowsContact && fundsReady;
   const mine = reviews.find((rv) => rv.pairing_id === r.id && rv.reviewer_id === viewerId);
   const theirs = reviews.find((rv) => rv.pairing_id === r.id && rv.reviewer_id !== viewerId);
   return {
@@ -226,6 +229,9 @@ pairingsRouter.post("/pairings/:id/start", requireAuth, async (req, res) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id);
     assertStatus(p, ["confirmed"], "start");
+    if (platformHoldsFunds && p.payment_status !== "held" && p.payment_status !== "paid") {
+      throw conflict("Pay HojiiGO before work starts", "payment_required");
+    }
     await db.query("update pairings set status = 'in_progress', started_at = now(), updated_at = now() where id = $1", [
       p.id,
     ]);
@@ -240,6 +246,9 @@ pairingsRouter.post("/pairings/:id/complete", requireAuth, async (req, res) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id);
     assertStatus(p, ["confirmed", "in_progress"], "complete");
+    if (platformHoldsFunds && p.payment_status !== "held" && p.payment_status !== "paid") {
+      throw conflict("Pay HojiiGO before confirming the work is done", "payment_required");
+    }
     const column = p.worker_id === me.id ? "worker_completed_at" : "employer_completed_at";
     if (p[column]) {
       throw conflict("You already confirmed completion; waiting for the other side", "already_confirmed_completion");
@@ -429,6 +438,9 @@ pairingsRouter.post("/pairings/:id/payment/verify", requireAuth, async (req, res
 
 pairingsRouter.post("/pairings/:id/payment/release", requireAuth, async (req, res) => {
   assertPaymentsOn();
+  if (platformHoldsFunds) {
+    throw forbidden("Only an admin can release payment to the worker", "admin_release_required");
+  }
   const me = currentUser(req);
   await withTransaction(async (db) => {
     const p = await loadPairing(db, idParam(req), me, true);
@@ -486,6 +498,9 @@ pairingsRouter.post("/pairings/:id/payment/release", requireAuth, async (req, re
 
 pairingsRouter.post("/pairings/:id/payment/mark-paid", requireAuth, async (req, res) => {
   assertPaymentsOn();
+  if (platformHoldsFunds) {
+    throw forbidden("Payments are held by HojiiGO until an admin releases them", "admin_release_required");
+  }
   const me = currentUser(req);
   await withTransaction(async (db) => {
     const p = await loadPairing(db, idParam(req), me, true);
@@ -529,6 +544,9 @@ pairingsRouter.post("/pairings/:id/payment/refund", requireAuth, async (req, res
   await withTransaction(async (db) => {
     const p = await loadPairing(db, idParam(req), me, true);
     assertParty(p, me.id, "employer");
+    if (platformHoldsFunds && p.status !== "confirmed") {
+      throw forbidden("Ask an admin to refund a job that has already started", "admin_release_required");
+    }
     if (p.payment_status !== "held") throw conflict("Only held payments can be refunded", "payment_wrong_status");
     const amount = agreedAmount(p);
     await paymentProvider.refund({ pairingId: p.id, amountEtb: amount, externalId: p.payment_external_id });

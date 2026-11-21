@@ -6,6 +6,7 @@ import { container, Spinner } from "./components/ui.tsx";
 import { useAuth } from "./lib/auth.tsx";
 import { useI18n } from "./lib/i18n.tsx";
 import { AdminPage } from "./pages/AdminPage.tsx";
+import { ContactPage } from "./pages/ContactPage.tsx";
 import { DashboardPage } from "./pages/DashboardPage.tsx";
 import { HomePage } from "./pages/HomePage.tsx";
 import { JobDetailPage } from "./pages/JobDetailPage.tsx";
@@ -44,6 +45,7 @@ export function App() {
         <Route path="/jobs/:id" element={<JobDetailPage />} />
         <Route path="/u/:username" element={<PublicProfilePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
         <Route path="/pairings/:id" element={<RequireAuth><PairingPage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />

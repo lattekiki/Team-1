@@ -1,7 +1,7 @@
-import { Flag, LifeBuoy, Scale, ScrollText, Search, ShieldCheck, Users } from "lucide-react";
+import { Banknote, Building2, Flag, LifeBuoy, Scale, ScrollText, Search, ShieldCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import type { Role, SupportTicketSummary, VerificationDocument, VerificationKind } from "@team1/shared";
+import type { PairingStatus, PaymentStatus, Role, SupportTicketSummary, VerificationDocument, VerificationKind } from "@team1/shared";
 import { btn, container, EmptyState, field, Rating, Spinner, StatusPill } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
 import { useAuth } from "../lib/auth.tsx";
@@ -19,6 +19,8 @@ type Overview = {
   openJobs: number;
   activePairings: number;
   completedPairings: number;
+  payoutsReady: number;
+  newInquiries: number;
 };
 type VerificationRow = {
   id: string;
@@ -476,7 +478,131 @@ function AuditLog() {
   );
 }
 
-type Tab = "verification" | "reports" | "disputes" | "tickets" | "users" | "audit";
+type PaymentRow = {
+  id: string;
+  status: PairingStatus;
+  paymentStatus: PaymentStatus;
+  amountEtb: number | null;
+  title: string;
+  workerUsername: string;
+  employerUsername: string;
+};
+
+function PaymentsQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged: () => void }) {
+  const { t, fmt } = useI18n();
+  const toast = useToast();
+  const { busy, run } = useAction();
+  const res = useApi<{ payments: PaymentRow[] }>("/admin/payments");
+  const release = async (id: string) => {
+    const ok = await run(
+      () => api(`/admin/pairings/${id}/payment/release`, { method: "POST" }),
+      (m) => toast(m, "error"),
+    );
+    if (ok) {
+      toast(t("toastPaymentReleased"));
+      res.reload();
+      onChanged();
+    }
+  };
+  if (res.loading && !res.data) return <Spinner />;
+  if (!res.data?.payments.length) return <EmptyState icon={Banknote} title={t("paymentsEmpty")} />;
+  return (
+    <ul className="space-y-3">
+      {res.data.payments.map((p) => (
+        <li key={p.id} className="p-4 rounded-2xl bg-white border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold">{p.title}</p>
+            <p className="text-xs text-zinc-500 mt-1">
+              @{p.employerUsername} → @{p.workerUsername}
+              {p.amountEtb != null ? ` • ${p.amountEtb.toLocaleString("en-US")} ETB` : ""}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <StatusPill tone={p.paymentStatus === "paid" ? "good" : "warn"}>{fmt.paymentStatus(p.paymentStatus)}</StatusPill>
+              <StatusPill>{fmt.pairingStatus(p.status)}</StatusPill>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {canDecide && p.paymentStatus === "held" && p.status === "completed" && (
+              <button disabled={busy} onClick={() => void release(p.id)} className={btn.primary}>
+                {t("paymentReleaseToWorker")}
+              </button>
+            )}
+            <Link to={`/pairings/${p.id}`} className={btn.light}>
+              {t("viewPairing")}
+            </Link>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type InquiryRow = {
+  id: string;
+  organizationName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  message: string;
+  workersNeeded: number;
+  monthlyEtb: number;
+  status: "new" | "in_talks" | "agreed" | "closed";
+};
+
+function InquiriesQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const { busy, run } = useAction();
+  const res = useApi<{ inquiries: InquiryRow[] }>("/admin/inquiries");
+  const setStatus = async (id: string, status: InquiryRow["status"]) => {
+    const ok = await run(
+      () => api(`/admin/inquiries/${id}/status`, { body: { status } }),
+      (m) => toast(m, "error"),
+    );
+    if (ok) {
+      toast(t("toastInquiryUpdated"));
+      res.reload();
+      onChanged();
+    }
+  };
+  const label: Record<InquiryRow["status"], string> = {
+    new: t("inquiryStatusNew"),
+    in_talks: t("inquiryStatusInTalks"),
+    agreed: t("inquiryStatusAgreed"),
+    closed: t("inquiryStatusClosed"),
+  };
+  if (res.loading && !res.data) return <Spinner />;
+  if (!res.data?.inquiries.length) return <EmptyState icon={Building2} title={t("inquiryEmpty")} />;
+  return (
+    <ul className="space-y-3">
+      {res.data.inquiries.map((row) => (
+        <li key={row.id} className="p-4 rounded-2xl bg-white border border-zinc-200 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold">{row.organizationName}</p>
+            <StatusPill tone={row.status === "new" ? "warn" : row.status === "agreed" ? "good" : "neutral"}>{label[row.status]}</StatusPill>
+          </div>
+          <p className="text-xs text-zinc-500">
+            {row.contactName} • {row.phone}
+            {row.email ? ` • ${row.email}` : ""} • {t("inquiryWorkers", { count: String(row.workersNeeded), amount: row.monthlyEtb.toLocaleString("en-US") })}
+          </p>
+          <p className="text-sm text-zinc-700 whitespace-pre-wrap">{row.message}</p>
+          {canDecide && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {(["in_talks", "agreed", "closed"] as const).map((status) => (
+                <button key={status} disabled={busy || row.status === status} onClick={() => void setStatus(row.id, status)} className={btn.light}>
+                  {label[status]}
+                </button>
+              ))}
+            </div>
+          )}
+          {row.status === "agreed" && <p className="text-xs text-zinc-500">{t("inquiryPostHint")}</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type Tab = "verification" | "reports" | "disputes" | "tickets" | "users" | "payments" | "inquiries" | "audit";
 
 export function AdminPage() {
   const { user } = useAuth();
@@ -493,6 +619,8 @@ export function AdminPage() {
     { id: "disputes", label: t("tabDisputes"), icon: Scale, count: o?.openDisputes },
     { id: "tickets", label: t("tabTickets"), icon: LifeBuoy, count: o?.openTickets },
     { id: "users", label: t("tabUsers"), icon: Users },
+    { id: "payments", label: t("tabPayments"), icon: Banknote, count: o?.payoutsReady },
+    { id: "inquiries", label: t("tabInquiries"), icon: Building2, count: o?.newInquiries },
     ...(isAdmin ? [{ id: "audit" as const, label: t("tabAudit"), icon: ScrollText }] : []),
   ];
   const stats: [string, number | undefined][] = [
@@ -504,6 +632,8 @@ export function AdminPage() {
     [t("adminOpenJobs"), o?.openJobs],
     [t("adminActivePairings"), o?.activePairings],
     [t("adminCompleted"), o?.completedPairings],
+    [t("adminPayouts"), o?.payoutsReady],
+    [t("adminInquiries"), o?.newInquiries],
   ];
 
   return (
@@ -514,7 +644,7 @@ export function AdminPage() {
           <p className="text-sm text-zinc-500 mt-1">{isAdmin ? t("adminSubtitleAdmin") : t("adminSubtitleSupport")}</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {stats.map(([label, value]) => (
             <div key={label} className="p-4 rounded-2xl bg-white border border-zinc-200">
               <p className="text-2xl font-extrabold">{value ?? "–"}</p>
@@ -544,6 +674,8 @@ export function AdminPage() {
         {tab === "disputes" && <DisputesQueue canDecide={isAdmin} onChanged={overview.reload} />}
         {tab === "tickets" && <TicketsQueue />}
         {tab === "users" && <UsersPanel canDecide={isAdmin} myId={user.id} />}
+        {tab === "payments" && <PaymentsQueue canDecide={isAdmin} onChanged={overview.reload} />}
+        {tab === "inquiries" && <InquiriesQueue canDecide={isAdmin} onChanged={overview.reload} />}
         {tab === "audit" && isAdmin && <AuditLog />}
       </div>
     </section>

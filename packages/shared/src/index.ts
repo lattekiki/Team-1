@@ -51,6 +51,10 @@ export const JIMMA_AREA_COORDS: Record<(typeof JIMMA_AREAS)[number]["id"], { lat
 };
 
 export const NEAR_RADIUS_KM = [3, 5, 10, 20] as const;
+/** Completed jobs before a worker is invited to request VIP (admin still decides). */
+export const ACTIVE_WORKER_JOBS = 30;
+export const ORG_MONTHLY_ETB = 5000;
+export const INQUIRY_STATUSES = ["new", "in_talks", "agreed", "closed"] as const;
 
 export function coordsForArea(area: string): { lat: number; lng: number } | null {
   return (JIMMA_AREA_COORDS as Record<string, { lat: number; lng: number }>)[area] ?? null;
@@ -166,6 +170,19 @@ const jobChecks = <T extends z.ZodType<Partial<z.infer<typeof jobFields>>>>(sche
 
 export const jobCreateSchema = jobChecks(jobFields.extend({ publish: z.boolean().default(false) }));
 export const jobUpdateSchema = jobChecks(jobFields.partial());
+export const inquiryCreateSchema = z.object({
+  organizationName: z.string().trim().min(2).max(120),
+  contactName: z.string().trim().min(2).max(80),
+  phone: phoneSchema,
+  email: z.string().trim().email().or(z.literal("")).default(""),
+  message: z.string().trim().min(10).max(2000),
+  workersNeeded: z.coerce.number().int().min(1).max(500).default(1),
+});
+
+export const inquiryStatusSchema = z.object({
+  status: z.enum(INQUIRY_STATUSES),
+});
+
 export const jobSuggestSchema = z.object({
   title: z.string().trim().max(120).default(""),
   description: z.string().trim().max(4000).default(""),
