@@ -1,6 +1,6 @@
 # HojiiGO — flexible work marketplace (pilot)
 
-Two Node projects in one GitHub repo (best for Vercel): **backend** (API) and **frontend** (web).
+Two Node projects in one GitHub repo: **backend** (API) and **frontend** (web). Render is the easiest hosted deploy (web process + Postgres). Vercel also works as two projects.
 
 Product spec: `SRS.docx`. Plan: [`docs/PLAN.md`](docs/PLAN.md).
 
@@ -18,6 +18,18 @@ npm run dev
 ```
 
 Open http://localhost:5173. The frontend proxies `/api` to http://localhost:4000.
+
+## Deploy on Render
+
+`render.yaml` at the repo root is a Blueprint: API (`team-1-api`), static site (`team-1-web`), and free Postgres (`team-1-db`).
+
+1. Push this repo to GitHub.
+2. [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → `lattekiki/Team-1`.
+3. Apply. After the API is live, the frontend build needs `VITE_API_URL` (wired from the API URL). If the first static build ran too early, click **Manual Deploy** on `team-1-web`.
+
+Check `https://team-1-api.onrender.com/api/health`, then open the `team-1-web` URL and sign in. OTP codes are returned in the UI (`OTP_EXPOSE_DEV_CODE=true`) and also appear in API logs.
+
+Free web services sleep after 15 minutes idle; the first request can take about a minute. Free Postgres expires after 30 days unless you upgrade.
 
 ## Deploy on Vercel (two projects, one repo)
 

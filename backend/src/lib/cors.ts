@@ -15,10 +15,11 @@ export function isAllowedOrigin(origin: string | undefined) {
   if (!origin) return false;
   const incoming = origin.replace(/\/$/, "");
   return webOrigins().some((allowed) => {
-    if (allowed === "https://*.vercel.app") {
+    if (allowed === "https://*.vercel.app" || allowed === "https://*.onrender.com") {
       try {
         const url = new URL(incoming);
-        return url.protocol === "https:" && url.hostname.endsWith(".vercel.app");
+        const suffix = allowed.endsWith(".onrender.com") ? ".onrender.com" : ".vercel.app";
+        return url.protocol === "https:" && url.hostname.endsWith(suffix);
       } catch {
         return false;
       }

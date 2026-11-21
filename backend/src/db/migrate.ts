@@ -7,6 +7,17 @@ import { env } from "../env.ts";
 const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../migrations");
 
 export async function ensureDatabaseExists(connectionString: string) {
+  const target = new pg.Client({ connectionString });
+  try {
+    await target.connect();
+    await target.query("select 1");
+    return;
+  } catch {
+    // Hosted Postgres (Render, Neon) already has the database. CREATE is local-only.
+  } finally {
+    await target.end().catch(() => undefined);
+  }
+
   const url = new URL(connectionString);
   const dbName = decodeURIComponent(url.pathname.slice(1));
   url.pathname = "/postgres";
