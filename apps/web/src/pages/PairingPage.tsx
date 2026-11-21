@@ -1,7 +1,7 @@
 import { Banknote, CheckCircle2, Clock, Lock, MapPin, Phone, RefreshCw, Star, Unlock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import type { Pairing, PaymentsMode } from "@team1/shared";
+import { quotePayment, type Pairing, type PaymentsMode } from "@team1/shared";
 import { DisputeButton, RebookModal, ReportButton, ReviewModal } from "../components/Modals.tsx";
 import { btn, container, ErrorBox, Spinner, StatusPill, TrustTierBadge } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
@@ -19,6 +19,30 @@ type PaymentsConfig = {
 };
 
 const STEPS = ["step_selected", "step_confirmed", "step_started", "step_completed", "step_reviewed"] as const;
+
+function FeeLines({
+  job,
+  employerPays,
+  workerReceives,
+  fee,
+}: {
+  job: number;
+  employerPays: number | null;
+  workerReceives: number | null;
+  fee: number | null;
+}) {
+  const { t } = useI18n();
+  const quote = quotePayment(job);
+  const money = (n: number) => n.toLocaleString("en-US");
+  return (
+    <div className="text-sm space-y-1">
+      <p>{t("feeJob", { amount: money(quote.jobPayEtb) })}</p>
+      <p className="font-semibold">{t("feeEmployer", { amount: money(employerPays ?? quote.employerPaysEtb) })}</p>
+      <p className="font-semibold">{t("feeWorker", { amount: money(workerReceives ?? quote.workerReceivesEtb) })}</p>
+      <p className="text-xs text-zinc-500">{t("feeNote", { amount: money(fee ?? quote.platformFeeEtb) })}</p>
+    </div>
+  );
+}
 
 function stepIndex(p: Pairing) {
   if (p.status === "completed") return p.myReview ? 4 : 3;
@@ -160,7 +184,8 @@ export function PairingPage() {
                   <Unlock className="w-4 h-4" />
                   {t("contactUnlocked")}
                 </div>
-                <a href={`tel:${p.contact.phone}`} className="mt-2 flex items-center gap-2 font-mono text-xl font-bold">
+                <p className="mt-3 text-lg font-extrabold">{p.contact.name}</p>
+                <a href={`tel:${p.contact.phone}`} className="mt-1 flex items-center gap-2 font-mono text-xl font-bold">
                   <Phone className="w-5 h-5" />
                   {p.contact.phone}
                 </a>
@@ -217,9 +242,12 @@ export function PairingPage() {
               </div>
               <p className="text-xs text-zinc-500">{payCfg.data.disclaimer}</p>
               {p.agreedPay != null && (
-                <p className="text-sm font-semibold">
-                  {t("paymentAmount", { amount: p.agreedPay.toLocaleString("en-US") })}
-                </p>
+                <FeeLines
+                  job={p.agreedPay}
+                  employerPays={p.paymentAmountEtb}
+                  workerReceives={p.workerPayoutEtb}
+                  fee={p.platformFeeEtb}
+                />
               )}
               <div className="flex flex-wrap gap-2 pt-1">
                 {!isWorker &&

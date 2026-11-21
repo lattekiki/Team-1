@@ -6,7 +6,7 @@ import { currentUser, requireRole } from "../lib/auth.ts";
 import { idParam } from "../lib/http.ts";
 import { conflict, notFound } from "../lib/errors.ts";
 import { audit, notify } from "../lib/events.ts";
-import { paymentProvider, recordPaymentEvent } from "../lib/payments.ts";
+import { paymentProvider, paymentsMode, recordPaymentEvent } from "../lib/payments.ts";
 import { reputationFor } from "../lib/stats.ts";
 
 export const adminRouter = Router();
@@ -47,14 +47,17 @@ adminRouter.get("/admin/overview", staff, async (_req, res) => {
 
 adminRouter.get("/admin/payments", staff, async (_req, res) => {
   const { rows } = await pool.query(
-    `select p.id, p.status, p.payment_status, p.payment_amount_etb, p.updated_at,
+    `select p.id, p.status, p.payment_status, p.payment_amount_etb, p.worker_payout_etb, p.platform_fee_etb,
+            p.admin_confirmed_at, p.updated_at,
             j.title, wu.username as worker_username, eu.username as employer_username
      from pairings p
      join jobs j on j.id = p.job_id
      join users wu on wu.id = p.worker_id
      join users eu on eu.id = p.employer_id
      where p.payment_status in ('pending', 'held', 'paid')
-     order by (p.payment_status = 'held' and p.status = 'completed') desc, p.updated_at desc
+     order by (p.payment_status = 'held' and p.admin_confirmed_at is null) desc,
+              (p.payment_status = 'held' and p.admin_confirmed_at is not null) desc,
+              p.updated_at desc
      limit 80`,
   );
   res.json({
@@ -62,13 +65,51 @@ adminRouter.get("/admin/payments", staff, async (_req, res) => {
       id: r.id,
       status: r.status,
       paymentStatus: r.payment_status,
+      adminConfirmed: Boolean(r.admin_confirmed_at),
       amountEtb: r.payment_amount_etb != null ? Number(r.payment_amount_etb) : null,
+      workerPayoutEtb: r.worker_payout_etb != null ? Number(r.worker_payout_etb) : null,
+      platformFeeEtb: r.platform_fee_etb != null ? Number(r.platform_fee_etb) : null,
       title: r.title,
       workerUsername: r.worker_username,
       employerUsername: r.employer_username,
       updatedAt: r.updated_at,
     })),
   });
+});
+
+adminRouter.post("/admin/pairings/:id/confirm-work", adminOnly, async (req, res) => {
+  const me = currentUser(req);
+  await withTransaction(async (db) => {
+    const { rows } = await db.query(
+      `select p.*, j.title
+       from pairings p join jobs j on j.id = p.job_id
+       where p.id = $1 for update of p`,
+      [idParam(req)],
+    );
+    const p = rows[0];
+    if (!p) throw notFound("Pairing not found");
+    if (!["in_progress", "completed"].includes(p.status)) {
+      throw conflict("Confirm the job after work has started", "pairing_wrong_status");
+    }
+    if (!p.admin_confirmed_at) {
+      await db.query(
+        `update pairings set
+           admin_confirmed_at = now(),
+           status = 'completed',
+           started_at = coalesce(started_at, now()),
+           employer_completed_at = coalesce(employer_completed_at, now()),
+           worker_completed_at = coalesce(worker_completed_at, now()),
+           completed_at = coalesce(completed_at, now()),
+           updated_at = now()
+         where id = $1`,
+        [p.id],
+      );
+      await audit(db, me.id, "pairing.confirm_work", { type: "pairing", id: p.id }, {});
+      await notify(db, p.worker_id, "work_confirmed_by_admin", { pairingId: p.id, title: p.title });
+      await notify(db, p.employer_id, "work_confirmed_by_admin", { pairingId: p.id, title: p.title });
+    }
+  });
+  res.json({ ok: true });
 });
 
 adminRouter.post("/admin/pairings/:id/payment/release", adminOnly, async (req, res) => {
@@ -83,10 +124,13 @@ adminRouter.post("/admin/pairings/:id/payment/release", adminOnly, async (req, r
     const p = rows[0];
     if (!p) throw notFound("Pairing not found");
     if (p.payment_status !== "held") throw conflict("Nothing is held to release", "payment_wrong_status");
-    if (p.status !== "completed") {
-      throw conflict("Release payment after both sides confirm the work is done", "pairing_wrong_status");
+    if (!p.admin_confirmed_at) {
+      throw conflict("Confirm the work is done before paying the worker", "admin_confirm_required");
     }
-    const amount = Number(p.payment_amount_etb ?? 0);
+    if (p.status !== "completed") {
+      throw conflict("Release payment after the work is confirmed", "pairing_wrong_status");
+    }
+    const amount = Number(p.worker_payout_etb ?? p.payment_amount_etb ?? 0);
     const payout = await db.query(
       `select payout_account_name, payout_account_number, payout_bank_code
        from worker_profiles where user_id = $1`,
@@ -119,7 +163,7 @@ adminRouter.post("/admin/pairings/:id/payment/release", adminOnly, async (req, r
       amountEtb: amount,
       externalId: released.externalId ?? p.payment_external_id,
       actorId: me.id,
-      note: "Admin release after both sides confirmed",
+      note: paymentsMode === "chapa" ? "Admin payout after confirming the work" : "Recorded payout. No bank transfer.",
     });
     await audit(db, me.id, "payment.release", { type: "pairing", id: p.id }, { amount });
     await notify(db, p.worker_id, "payment_released", {

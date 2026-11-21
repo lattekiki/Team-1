@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import {
   EMPLOYER_TYPES,
   EXPERIENCE_LEVELS,
-  JIMMA_AREAS,
+  SERVICE_AREAS,
   LANGUAGES,
   type BlockedUser,
   type EmployerType,
@@ -60,13 +60,17 @@ function AccountForm({ user }: { user: Me }) {
   const toast = useToast();
   const { busy, run } = useAction();
   const [username, setUsername] = useState(user.username ?? "");
+  const [contactName, setContactName] = useState(user.contactName ?? "");
   const [language, setLanguage] = useState<Language>(user.language);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    const res = await run(() => api<{ user: Me }>("/me", { method: "PATCH", body: { username, language } }), setError);
+    const res = await run(
+      () => api<{ user: Me }>("/me", { method: "PATCH", body: { username, language, contactName } }),
+      setError,
+    );
     if (res) {
       setUser(res.user);
       toast(t("toastAccountUpdated"));
@@ -83,6 +87,17 @@ function AccountForm({ user }: { user: Me }) {
           <input id="acc-username" value={username} onChange={(e) => setUsername(e.target.value)} className={field.input} />
         </div>
         <div>
+          <label htmlFor="acc-contact-name" className={field.label}>
+            {t("contactName")}
+          </label>
+          <input
+            id="acc-contact-name"
+            value={contactName}
+            onChange={(e) => setContactName(e.target.value)}
+            className={field.input}
+          />
+        </div>
+        <div>
           <label htmlFor="acc-lang" className={field.label}>
             {t("language")}
           </label>
@@ -95,6 +110,7 @@ function AccountForm({ user }: { user: Me }) {
           </select>
         </div>
       </div>
+      <p className="text-[11px] text-zinc-500">{t("contactNameHint")}</p>
       <p className="text-[11px] text-zinc-500">{t("phonePrivate", { phone: user.phone })}</p>
       {error && <ErrorBox message={error} />}
       <button type="submit" disabled={busy} className={btn.primary}>
@@ -109,7 +125,7 @@ function AreaSelect({ id, value, onChange }: { id: string; value: string; onChan
   return (
     <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={field.select}>
       <option value="">{t("areaNotSet")}</option>
-      {JIMMA_AREAS.map((a) => (
+      {SERVICE_AREAS.map((a) => (
         <option key={a.id} value={a.id}>
           {fmt.area(a.id)}
         </option>

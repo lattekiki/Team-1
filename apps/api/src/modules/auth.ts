@@ -28,7 +28,7 @@ const hashCode = (phone: string, code: string) => sha256(`${phone}:${code}`);
 
 export async function loadMe(userId: string): Promise<Me> {
   const { rows } = await pool.query(
-    `select id, phone, username, language, role, active_mode, identity_verified, high_trust_approved
+    `select id, phone, username, contact_name, language, role, active_mode, identity_verified, high_trust_approved
      from users where id = $1`,
     [userId],
   );
@@ -38,6 +38,7 @@ export async function loadMe(userId: string): Promise<Me> {
     id: u.id,
     phone: u.phone,
     username: u.username,
+    contactName: u.contact_name ?? "",
     language: u.language,
     role: u.role,
     activeMode: u.active_mode,

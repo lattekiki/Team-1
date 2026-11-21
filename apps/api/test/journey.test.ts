@@ -105,12 +105,15 @@ describe("Definition of Done journey (SRS section 35)", () => {
     expect(accepted.body.pairing.status).toBe("confirmed");
     expect(accepted.body.pairing.contact).toBeNull();
 
+    await employer.agent.patch("/api/me").send({ contactName: "Marta Bekele" }).expect(200);
     await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(200);
     const unlocked = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
-    expect(unlocked.body.pairing.contact).toEqual({ phone: employer.phone });
+    expect(unlocked.body.pairing.contact).toEqual({ phone: employer.phone, name: "Marta Bekele" });
+    const pub = await request(app).get("/api/users/merkato_shop").expect(200);
+    expect(JSON.stringify(pub.body)).not.toContain("Marta Bekele");
 
     const employerView = await employer.agent.get(`/api/pairings/${pairingId}`).expect(200);
-    expect(employerView.body.pairing.contact).toEqual({ phone: worker.phone });
+    expect(employerView.body.pairing.contact).toEqual({ phone: worker.phone, name: "abebe" });
 
     const job = await worker.agent.get(`/api/jobs/${jobId}`).expect(200);
     expect(job.body.job.status).toBe("filled");
@@ -324,7 +327,7 @@ describe("hard rules", () => {
     expect(res.body.job.area).toBe("Merkato");
   });
 
-  it("filters jobs by distance from a Jimma neighborhood center", async () => {
+  it("filters jobs by distance from a neighborhood center", async () => {
     const employer = await signUp("near_filter_shop");
     const errands = await categoryId("errands");
     const post = async (title: string, area: string) =>
@@ -348,11 +351,11 @@ describe("hard rules", () => {
     await request(app).get("/api/jobs").query({ near: "Atlantis" }).expect(400);
   });
 
-  it("filters jobs by Jimma-local date and minimum pay", async () => {
+  it("filters jobs by local date and minimum pay", async () => {
     const employer = await signUp("date_filter_shop");
     const errands = await categoryId("errands");
-    // Noon on a Jimma (UTC+3) calendar day, `daysAhead` days from today there.
-    const jimmaNoon = (daysAhead: number) => {
+    // Noon on an Ethiopia (UTC+3) calendar day, `daysAhead` days from today there.
+    const localNoon = (daysAhead: number) => {
       const day = new Date(Date.now() + 3 * 3600_000);
       day.setUTCDate(day.getUTCDate() + daysAhead);
       return new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 9)).toISOString();
@@ -360,7 +363,7 @@ describe("hard rules", () => {
     const post = async (title: string, daysAhead: number, payMin: number) => {
       const res = await employer.agent
         .post("/api/jobs")
-        .send({ categoryId: errands, title, area: "Ginjo", payType: "fixed", payMin, startsAt: jimmaNoon(daysAhead), publish: true })
+        .send({ categoryId: errands, title, area: "Ginjo", payType: "fixed", payMin, startsAt: localNoon(daysAhead), publish: true })
         .expect(201);
       return res.body.job.id as string;
     };
@@ -477,7 +480,7 @@ describe("hard rules", () => {
       .expect(200);
     expect(disputed.body.pairing.status).toBe("disputed");
     expect(disputed.body.pairing.dispute.status).toBe("open");
-    expect(disputed.body.pairing.contact).toEqual({ phone: employer.phone });
+    expect(disputed.body.pairing.contact).toEqual({ phone: employer.phone, name: "dispute_shop" });
 
     const list = await admin.agent.get("/api/admin/disputes").expect(200);
     const dispute = list.body.disputes.find((d: { pairingId: string }) => d.pairingId === pairingId);
@@ -645,8 +648,10 @@ describe("hard rules", () => {
     await employer.agent.post(`/api/pairings/${pairingId}/payment/hold`).expect(200);
     pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.paymentStatus).toBe("held");
-    expect(pairing.body.pairing.paymentAmountEtb).toBe(650);
-    expect(pairing.body.pairing.contact).toEqual({ phone: employer.phone });
+    expect(pairing.body.pairing.paymentAmountEtb).toBe(666);
+    expect(pairing.body.pairing.workerPayoutEtb).toBe(634);
+    expect(pairing.body.pairing.platformFeeEtb).toBe(32);
+    expect(pairing.body.pairing.contact).toEqual({ phone: employer.phone, name: "pay_boss" });
 
     await employer.agent.post(`/api/pairings/${pairingId}/payment/release`).expect(403);
     await employer.agent.post(`/api/pairings/${pairingId}/start`).expect(200);
@@ -656,6 +661,8 @@ describe("hard rules", () => {
     await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(409);
     await employer.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
     await worker.agent.post(`/api/pairings/${pairingId}/complete`).expect(200);
+    await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(409);
+    await payer.agent.post(`/api/admin/pairings/${pairingId}/confirm-work`).expect(200);
     await payer.agent.post(`/api/admin/pairings/${pairingId}/payment/release`).expect(200);
     pairing = await worker.agent.get(`/api/pairings/${pairingId}`).expect(200);
     expect(pairing.body.pairing.paymentStatus).toBe("paid");
@@ -678,7 +685,7 @@ describe("hard rules", () => {
     const created = await request(app)
       .post("/api/inquiries")
       .send({
-        organizationName: "Jimma City Office",
+        organizationName: "City Works Office",
         contactName: "Sara Bekele",
         phone: "0911222333",
         message: "We need many workers each month under an agreement.",

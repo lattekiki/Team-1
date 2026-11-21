@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   CONTACT_VISIBLE_PAIRING_STATUSES,
+  quotePayment,
   disputeCreateSchema,
   rebookSchema,
   reviewCreateSchema,
@@ -29,8 +30,8 @@ import {
 const PAIRING_SELECT = `
   select p.*, j.title, j.tier, j.area, j.landmark, j.starts_at, j.ends_at, j.pay_type, j.pay_min, j.pay_max,
          j.payment_terms, j.workers_needed, c.name as category_name, c.slug as category_slug,
-         wu.username as worker_username, wu.phone as worker_phone,
-         eu.username as employer_username, eu.phone as employer_phone,
+         wu.username as worker_username, wu.phone as worker_phone, wu.contact_name as worker_contact_name,
+         eu.username as employer_username, eu.phone as employer_phone, eu.contact_name as employer_contact_name,
          a.proposed_pay, rb.id as rebooking_id, rb.status as rebooking_status,
          d.id as dispute_id, d.reason as dispute_reason, d.status as dispute_status,
          d.opened_by as dispute_opened_by, d.created_at as dispute_opened_at,
@@ -52,6 +53,11 @@ const PAIRING_SELECT = `
 type Row = Record<string, any>;
 type ReviewRow = { pairing_id: string; reviewer_id: string; overall: number; body: string };
 
+function sharedContactName(contactName: string | null | undefined, username: string): string {
+  const name = (contactName ?? "").trim();
+  return name || username;
+}
+
 function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
   const myRole = r.worker_id === viewerId ? "worker" : "employer";
   const statusShowsContact = (CONTACT_VISIBLE_PAIRING_STATUSES as readonly string[]).includes(r.status);
@@ -64,6 +70,8 @@ function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
     status: r.status,
     paymentStatus: r.payment_status,
     paymentAmountEtb: r.payment_amount_etb != null ? Number(r.payment_amount_etb) : null,
+    platformFeeEtb: r.platform_fee_etb != null ? Number(r.platform_fee_etb) : null,
+    workerPayoutEtb: r.worker_payout_etb != null ? Number(r.worker_payout_etb) : null,
     paymentHeldAt: r.payment_held_at ?? null,
     paymentPaidAt: r.payment_paid_at ?? null,
     paymentCheckoutUrl: r.payment_checkout_url ?? null,
@@ -92,7 +100,15 @@ function toPairing(r: Row, viewerId: string, reviews: ReviewRow[]): Pairing {
     workerCompletedAt: r.worker_completed_at,
     completedAt: r.completed_at,
     createdAt: r.created_at,
-    contact: contactVisible ? { phone: myRole === "worker" ? r.employer_phone : r.worker_phone } : null,
+    contact: contactVisible
+      ? {
+          phone: myRole === "worker" ? r.employer_phone : r.worker_phone,
+          name: sharedContactName(
+            myRole === "worker" ? r.employer_contact_name : r.worker_contact_name,
+            myRole === "worker" ? r.employer_username : r.worker_username,
+          ),
+        }
+      : null,
     myReview: mine ? { overall: mine.overall, body: mine.body } : null,
     theirReview: theirs ? { overall: theirs.overall, body: theirs.body } : null,
     rebooking: r.rebooking_id ? { id: r.rebooking_id, status: r.rebooking_status } : null,
@@ -316,10 +332,16 @@ function assertPaymentsOn() {
   if (!paymentsEnabled) throw badRequest("Platform payments are disabled", "payments_disabled");
 }
 
-function agreedAmount(p: Row): number {
-  const n = Number(p.payment_amount_etb ?? p.proposed_pay ?? p.pay_max ?? p.pay_min ?? 0);
+function jobPay(p: Row): number {
+  const n = Number(p.proposed_pay ?? p.pay_max ?? p.pay_min ?? 0);
   if (!(n > 0)) throw badRequest("Agree a pay amount before recording payment", "payment_amount_required");
   return n;
+}
+
+function payoutAmount(p: Row): number {
+  const stored = Number(p.worker_payout_etb ?? 0);
+  if (stored > 0) return stored;
+  return quotePayment(jobPay(p)).workerReceivesEtb;
 }
 
 pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) => {
@@ -334,7 +356,8 @@ pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) 
     if (p.payment_status !== "pending" && p.payment_status !== "failed") {
       throw conflict(`Payment is already ${p.payment_status}`, "payment_wrong_status");
     }
-    const amount = agreedAmount(p);
+    const quote = quotePayment(jobPay(p));
+    const amount = quote.employerPaysEtb;
     const returnUrl = `${env.WEB_ORIGIN.replace(/\/$/, "")}/pairings/${p.id}?payment=return`;
     const callbackUrl = env.PUBLIC_API_URL
       ? `${env.PUBLIC_API_URL.replace(/\/$/, "")}/api/payments/chapa/callback`
@@ -353,10 +376,11 @@ pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) 
     if (immediate) {
       await db.query(
         `update pairings
-         set payment_status = 'held', payment_amount_etb = $2, payment_external_id = $3,
+         set payment_status = 'held', payment_amount_etb = $2, platform_fee_etb = $3,
+             worker_payout_etb = $4, payment_external_id = $5,
              payment_checkout_url = null, payment_held_at = now(), updated_at = now()
          where id = $1`,
-        [p.id, amount, held.externalId],
+        [p.id, amount, quote.platformFeeEtb, quote.workerReceivesEtb, held.externalId],
       );
       await recordPaymentEvent(db, {
         pairingId: p.id,
@@ -374,10 +398,11 @@ pairingsRouter.post("/pairings/:id/payment/hold", requireAuth, async (req, res) 
     } else {
       await db.query(
         `update pairings
-         set payment_status = 'pending', payment_amount_etb = $2, payment_external_id = $3,
-             payment_checkout_url = $4, updated_at = now()
+         set payment_status = 'pending', payment_amount_etb = $2, platform_fee_etb = $3,
+             worker_payout_etb = $4, payment_external_id = $5,
+             payment_checkout_url = $6, updated_at = now()
          where id = $1`,
-        [p.id, amount, held.externalId, checkoutUrl],
+        [p.id, amount, quote.platformFeeEtb, quote.workerReceivesEtb, held.externalId, checkoutUrl],
       );
       await recordPaymentEvent(db, {
         pairingId: p.id,
@@ -413,7 +438,7 @@ pairingsRouter.post("/pairings/:id/payment/verify", requireAuth, async (req, res
     if (!paymentProvider.verifyHold) {
       throw badRequest("This payment mode does not use hosted checkout verify", "payment_verify_unsupported");
     }
-    const amount = agreedAmount(p);
+    const amount = Number(p.payment_amount_etb ?? quotePayment(jobPay(p)).employerPaysEtb);
     const result = await paymentProvider.verifyHold({
       pairingId: p.id,
       externalId: p.payment_external_id,
@@ -449,7 +474,7 @@ pairingsRouter.post("/pairings/:id/payment/release", requireAuth, async (req, re
     if (!["in_progress", "completed"].includes(p.status)) {
       throw conflict("Release payment after work is underway or completed", "pairing_wrong_status");
     }
-    const amount = agreedAmount(p);
+    const amount = payoutAmount(p);
     const payout = await db.query(
       `select payout_account_name, payout_account_number, payout_bank_code
        from worker_profiles where user_id = $1`,
@@ -511,15 +536,16 @@ pairingsRouter.post("/pairings/:id/payment/mark-paid", requireAuth, async (req, 
     if (!["confirmed", "in_progress", "completed"].includes(p.status)) {
       throw conflict("Record payment once the pairing is confirmed", "pairing_wrong_status");
     }
-    const amount = agreedAmount(p);
-    const { externalId } = await paymentProvider.markPaid({ pairingId: p.id, amountEtb: amount });
+    const quote = quotePayment(jobPay(p));
+    const amount = quote.workerReceivesEtb;
+    const { externalId } = await paymentProvider.markPaid({ pairingId: p.id, amountEtb: quote.employerPaysEtb });
     await db.query(
       `update pairings
-       set payment_status = 'paid', payment_amount_etb = $2,
-           payment_external_id = coalesce($3, payment_external_id),
+       set payment_status = 'paid', payment_amount_etb = $2, platform_fee_etb = $3, worker_payout_etb = $4,
+           payment_external_id = coalesce($5, payment_external_id),
            payment_paid_at = now(), updated_at = now()
        where id = $1`,
-      [p.id, amount, externalId],
+      [p.id, quote.employerPaysEtb, quote.platformFeeEtb, amount, externalId],
     );
     await recordPaymentEvent(db, {
       pairingId: p.id,
@@ -548,7 +574,7 @@ pairingsRouter.post("/pairings/:id/payment/refund", requireAuth, async (req, res
       throw forbidden("Ask an admin to refund a job that has already started", "admin_release_required");
     }
     if (p.payment_status !== "held") throw conflict("Only held payments can be refunded", "payment_wrong_status");
-    const amount = agreedAmount(p);
+    const amount = Number(p.payment_amount_etb ?? quotePayment(jobPay(p)).employerPaysEtb);
     await paymentProvider.refund({ pairingId: p.id, amountEtb: amount, externalId: p.payment_external_id });
     await db.query(
       `update pairings

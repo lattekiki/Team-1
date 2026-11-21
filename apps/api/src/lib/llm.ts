@@ -26,7 +26,7 @@ function clip(text: string, max: number) {
 
 export function templateDraft(input: AssistInput): string {
   const title = input.title || "this job";
-  const area = input.area || "Jimma";
+  const area = input.area || "the area";
   const extra = input.notes || input.description;
 
   if (input.kind === "job_description") {
@@ -81,7 +81,7 @@ async function openaiDraft(input: AssistInput): Promise<string> {
   const max = input.kind === "job_description" ? 800 : 400;
   const role =
     input.kind === "job_description"
-      ? "Write a short job posting description for HojiiGO, a Jimma work marketplace."
+      ? "Write a short job posting description for HojiiGO, a local work marketplace."
       : "Write a short application pitch from a worker to an employer on HojiiGO.";
   const system = `${role} Write in ${langName(input.language)}. Plain text only, no bullets unless needed. Do not include phone numbers, emails, house numbers, or payment account details. Keep it under ${max} characters.`;
   const user = JSON.stringify({

@@ -1,6 +1,6 @@
 # Team-1 MVP Build Plan
 
-Source: `SRS.docx` — *Flexible Work & Local Services Marketplace, Jimma pilot* (Nov 2026).
+Source: `SRS.docx` — *Flexible Work & Local Services Marketplace* (Nov 2026).
 
 ## 1. Constraints
 
@@ -39,7 +39,7 @@ The target is the SRS §35 **Definition of Done** journey, end to end, without m
 
 ### Stubbed / pluggable providers
 - **OTP/SMS**: `OtpProvider` with `console` (default), `africastalking`, or `twilio` via `OTP_PROVIDER`. Live SMS never returns `devCode` unless `OTP_EXPOSE_DEV_CODE=true`.
-- **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow|chapa`. Manual/mock track `pending → held → paid|refunded`. In `mock_escrow` and `chapa` the employer pays HojiiGO first (phone stays hidden until the payment is `held` or `paid`), work cannot start until then, and only an admin releases funds after both sides confirm completion. **Chapa** opens hosted checkout, confirms via verify/webhook, refunds via Chapa API, and transfers to worker bank details when set. Legal review still required before a live pilot (SRS §12).
+- **Payments**: `PAYMENTS_MODE=off|manual|mock_escrow|chapa`. `mock_escrow` is a record only: no bank call and no fake transfer. In `mock_escrow` and `chapa` the employer pays HojiiGO first (phone stays hidden until the payment is `held` or `paid`), work cannot start until then, an admin confirms the job (`POST /admin/pairings/:id/confirm-work`), then records or sends the payout. **Chapa** is the only mode that moves money: hosted checkout, verify/webhook, refund, and transfer to worker bank details when set. Legal review still required before a live pilot (SRS §12).
 
 ### Deferred (Phase 2+)
 None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
@@ -48,7 +48,7 @@ None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
 - **Block user**, **job favorites**, **lazy job expiry**, **pairing disputes** (open → staff resume or cancel; no payment escrow).
 - **Support tickets**: users open threads (`/tickets`); staff reply and resolve from admin; in-app notifications on reply/status.
 - **Light / dark / system theme** (persisted; zinc palette remaps under `.dark`).
-- **Distance browse**: `near` + `radiusKm` using Jimma neighborhood centers.
+- **Distance browse**: `near` + `radiusKm` using neighborhood centers. The map opens on `MAP_CENTER`, not a city name in the brand.
 - **Interactive map**: Leaflet + OpenStreetMap on Explore Jobs and job detail (pins from job `lat`/`lng` or area center).
 - **Verification documents**: JPEG/PNG/WebP/PDF (≤5 MB, ≤3 files) via pluggable object storage (`STORAGE_BACKEND=local|s3`) for pending requests; staff can open them from admin.
 - **Business / bulk jobs**: `POST /jobs/bulk` posts the same template once per shift (2–14); job cards and detail show `filledSlots` / `workersNeeded`; select is blocked when seats are full.
@@ -61,9 +61,12 @@ None in code. Optional later: live LLM keys, live SMS/Chapa credentials.
 - **Generative match blurbs**: rule-based one-liners always; when `LLM_PROVIDER=openai`, an optional batch call may reorder **already-eligible** jobs/applicants and rewrite blurbs — never drops ids, never uses rating as VIP eligibility.
 - **Writing assist**: `POST /assist` drafts job descriptions and apply pitches. `LLM_PROVIDER=template` (default, no API) or `openai` (OpenAI-compatible; falls back to template). `off` hides the buttons.
 - **VIP production gate**: `VIP_CATEGORIES` unset means household/childcare (`vip`) categories are hidden and cannot be posted or applied to when `NODE_ENV=production`.
-- **Platform hold**: when payments are `mock_escrow` or `chapa`, contact stays hidden until funds are held, and `POST /admin/pairings/:id/payment/release` is the only release (both sides must have confirmed completion). Employer refund is only while the pairing is still `confirmed`.
+- **Platform hold**: when payments are `mock_escrow` or `chapa`, contact stays hidden until the payment is held. An admin confirms the work, then `POST /admin/pairings/:id/payment/release` records the payout (`mock_escrow`) or sends it through Chapa. Employer refund is only while the pairing is still `confirmed`.
 - **Organization requests**: public `POST /inquiries` (example agreement 5,000 ETB/month) lands in the admin Organizations tab. Admin posts the jobs with the existing bulk poster; nothing is auto-posted.
 - **Active worker**: 30 completed jobs shows a badge and a prompt to request VIP. It does not set `high_trust_approved`.
+- **Platform fee**: 2.5% of the job pay from the employer and 2.5% from the worker (5% total). `quotePayment` is shown before pay. The held amount is what the employer pays; admin release records or sends the worker's net.
+- **Talk to admin**: signed-in people use Contact us to open a support ticket. The organization form stays for monthly agreements.
+- **Paid contact name**: `users.contact_name` is returned only inside a pairing `contact` object, together with the phone, once contact is allowed. Public profiles keep the @username. If no contact name is set, the username is used.
 
 ## 3. Repo layout
 
@@ -121,7 +124,7 @@ docs/PLAN.md
    - `ordinary`: active account with a worker profile
    - `skilled`: also at least one listed skill
    - `vip`: also `identity_verified` **and** `high_trust_approved` (admin decision). Rating never substitutes.
-2. **Contact privacy** (§11): the other party's `phone` appears only in the `contact` field of a pairing response, only to the two parties, and only when the pairing is `confirmed`, `in_progress`, `completed`, or `disputed`. When `PAYMENTS_MODE` is `mock_escrow` or `chapa`, the phone also stays hidden until payment is `held` or `paid`.
+2. **Contact privacy** (§11): the other party's `phone` and contact `name` appear only in the `contact` field of a pairing response, only to the two parties, and only when the pairing is `confirmed`, `in_progress`, `completed`, or `disputed`. When `PAYMENTS_MODE` is `mock_escrow` or `chapa`, they also stay hidden until payment is `held` or `paid`. The public @username is separate and stays visible.
 3. **Reviews** only for `completed` pairings, by a party to the pairing, once each (DB unique constraint).
 4. **Admin routes** require `role = admin` (support gets read-only report access); every admin write goes to `audit_logs`.
 5. New workers with zero reviews are never hidden from applicant lists (§15).

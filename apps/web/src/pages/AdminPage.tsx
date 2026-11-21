@@ -482,7 +482,10 @@ type PaymentRow = {
   id: string;
   status: PairingStatus;
   paymentStatus: PaymentStatus;
+  adminConfirmed: boolean;
   amountEtb: number | null;
+  workerPayoutEtb: number | null;
+  platformFeeEtb: number | null;
   title: string;
   workerUsername: string;
   employerUsername: string;
@@ -493,6 +496,17 @@ function PaymentsQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged
   const toast = useToast();
   const { busy, run } = useAction();
   const res = useApi<{ payments: PaymentRow[] }>("/admin/payments");
+  const confirmWork = async (id: string) => {
+    const ok = await run(
+      () => api(`/admin/pairings/${id}/confirm-work`, { method: "POST" }),
+      (m) => toast(m, "error"),
+    );
+    if (ok) {
+      toast(t("toastWorkConfirmed"));
+      res.reload();
+      onChanged();
+    }
+  };
   const release = async (id: string) => {
     const ok = await run(
       () => api(`/admin/pairings/${id}/payment/release`, { method: "POST" }),
@@ -514,15 +528,26 @@ function PaymentsQueue({ canDecide, onChanged }: { canDecide: boolean; onChanged
             <p className="text-sm font-bold">{p.title}</p>
             <p className="text-xs text-zinc-500 mt-1">
               @{p.employerUsername} → @{p.workerUsername}
-              {p.amountEtb != null ? ` • ${p.amountEtb.toLocaleString("en-US")} ETB` : ""}
+              {p.workerPayoutEtb != null
+                ? ` • ${t("feeWorker", { amount: p.workerPayoutEtb.toLocaleString("en-US") })}`
+                : p.amountEtb != null
+                  ? ` • ${p.amountEtb.toLocaleString("en-US")} ETB`
+                  : ""}
+              {p.platformFeeEtb != null ? ` • ${t("feeNote", { amount: p.platformFeeEtb.toLocaleString("en-US") })}` : ""}
             </p>
             <div className="mt-2 flex gap-2">
               <StatusPill tone={p.paymentStatus === "paid" ? "good" : "warn"}>{fmt.paymentStatus(p.paymentStatus)}</StatusPill>
               <StatusPill>{fmt.pairingStatus(p.status)}</StatusPill>
+              {p.adminConfirmed && <StatusPill tone="good">{t("adminConfirmed")}</StatusPill>}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {canDecide && p.paymentStatus === "held" && p.status === "completed" && (
+            {canDecide && p.paymentStatus === "held" && ["in_progress", "completed"].includes(p.status) && !p.adminConfirmed && (
+              <button disabled={busy} onClick={() => void confirmWork(p.id)} className={btn.primary}>
+                {t("adminConfirmWork")}
+              </button>
+            )}
+            {canDecide && p.paymentStatus === "held" && p.adminConfirmed && (
               <button disabled={busy} onClick={() => void release(p.id)} className={btn.primary}>
                 {t("paymentReleaseToWorker")}
               </button>

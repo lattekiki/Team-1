@@ -2,7 +2,7 @@ import { Lock, Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import {
-  JIMMA_AREAS,
+  SERVICE_AREAS,
   JOB_WHEN,
   NEAR_RADIUS_KM,
   PAY_TYPES,
@@ -119,7 +119,7 @@ export function JobsPage() {
                 </label>
                 <select id="f-area" value={params.get("area") ?? ""} onChange={(e) => setFilter("area", e.target.value)} className={field.select}>
                   <option value="">{t("locationAll")}</option>
-                  {JIMMA_AREAS.map((a) => (
+                  {SERVICE_AREAS.map((a) => (
                     <option key={a.id} value={a.id}>
                       {fmt.area(a.id)}
                     </option>
@@ -141,7 +141,7 @@ export function JobsPage() {
                   className={field.select}
                 >
                   <option value="">{t("nearAny")}</option>
-                  {JIMMA_AREAS.map((a) => (
+                  {SERVICE_AREAS.map((a) => (
                     <option key={a.id} value={a.id}>
                       {fmt.area(a.id)}
                     </option>

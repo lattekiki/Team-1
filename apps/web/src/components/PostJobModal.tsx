@@ -1,6 +1,6 @@
 import { Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { JIMMA_AREAS, PAY_TYPES, type Category, type JobSummary, type PayType } from "@team1/shared";
+import { SERVICE_AREAS, PAY_TYPES, type Category, type JobSummary, type PayType } from "@team1/shared";
 import { api } from "../lib/api.ts";
 import { fromLocalInput, PAYMENT_TERM_KEYS, toLocalInput } from "../lib/format.ts";
 import { useI18n } from "../lib/i18n.tsx";
@@ -33,7 +33,7 @@ type Form = {
 const fromJob = (job?: JobSummary): Form => ({
   title: job?.title ?? "",
   categoryId: job ? String(job.category.id) : "",
-  area: job?.area ?? JIMMA_AREAS[0].id,
+  area: job?.area ?? SERVICE_AREAS[0].id,
   landmark: job?.landmark ?? "",
   startsAt: toLocalInput(job?.startsAt),
   endsAt: toLocalInput(job?.endsAt),
@@ -210,7 +210,7 @@ export function PostJobModal({
               {t("postAreaLabel")}
             </label>
             <select id="area" value={form.area} onChange={(e) => set("area", e.target.value)} className={field.select}>
-              {JIMMA_AREAS.map((a) => (
+              {SERVICE_AREAS.map((a) => (
                 <option key={a.id} value={a.id}>
                   {fmt.area(a.id)}
                 </option>

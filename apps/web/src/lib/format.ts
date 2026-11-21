@@ -1,5 +1,5 @@
 import {
-  JIMMA_AREAS,
+  SERVICE_AREAS,
   type ApplicationStatus,
   type Eligibility,
   type EmployerType,
@@ -67,7 +67,7 @@ export function makeFormatters(lang: Language, { t, tp, tx }: { t: Translate; tp
     role: (r: Role) => t(`role_${r}`),
     category: (slug: string, fallback: string) => tx(`cat_${slug}`, fallback),
     skill: (slug: string, fallback: string) => tx(`skill_${slug}`, fallback),
-    area: (id: string) => (lang === "am" ? (JIMMA_AREAS.find((a) => a.id === id)?.am ?? id) : id),
+    area: (id: string) => (lang === "am" ? (SERVICE_AREAS.find((a) => a.id === id)?.am ?? id) : id),
     audit: (action: string) => tx(`audit_${action.replace(/\./g, "_")}`, action),
     eligibility: (e: Eligibility) => (e.code ? t(`elig_${e.code}`) : (e.reason ?? "")),
 

@@ -1,7 +1,7 @@
 import { ArrowRight, Briefcase, MapPin, Search, ShieldCheck, Sparkles, Unlock, UserCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { JIMMA_AREAS, type Category, type JobSummary, type PublicStats } from "@team1/shared";
+import { SERVICE_AREAS, type Category, type JobSummary, type PublicStats } from "@team1/shared";
 import { ApplyModal } from "../components/ApplyModal.tsx";
 import { HeroIllustration, HowItWorksIllustration } from "../components/Illustrations.tsx";
 import { JobCard } from "../components/JobCard.tsx";
@@ -87,7 +87,7 @@ export function HomePage() {
                         className="w-full text-sm font-medium text-zinc-900 focus:outline-none bg-transparent"
                       >
                         <option value="">{t("locationAll")}</option>
-                        {JIMMA_AREAS.map((a) => (
+                        {SERVICE_AREAS.map((a) => (
                           <option key={a.id} value={a.id}>
                             {fmt.area(a.id)}
                           </option>

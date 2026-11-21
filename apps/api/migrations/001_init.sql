@@ -1,4 +1,4 @@
--- Core schema for the Jimma marketplace MVP. See docs/PLAN.md section 4.
+-- Core schema for the marketplace MVP. See docs/PLAN.md section 4.
 -- Status columns use text + CHECK instead of Postgres enums so values can change without enum migrations.
 
 create table users (

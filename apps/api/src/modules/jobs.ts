@@ -35,8 +35,8 @@ const JOB_SELECT = `
   left join employer_profiles ep on ep.user_id = j.employer_id
   left join applications ma on ma.job_id = j.id and ma.worker_id = $1::uuid`;
 
-// Midnight today on Jimma's clock; "today" means the local day, not the server's.
-const JIMMA_TODAY = `(date_trunc('day', now() at time zone 'Africa/Addis_Ababa') at time zone 'Africa/Addis_Ababa')`;
+// Midnight today on Ethiopia's clock; "today" means the local day, not the server's.
+const LOCAL_TODAY = `(date_trunc('day', now() at time zone 'Africa/Addis_Ababa') at time zone 'Africa/Addis_Ababa')`;
 const WHEN_DAYS: Record<JobWhen, [from: number, to: number]> = { today: [0, 1], tomorrow: [1, 2], week: [0, 7] };
 
 type JobRow = Record<string, any>;
@@ -183,8 +183,8 @@ jobsRouter.get("/jobs", async (req, res) => {
   if (q.when) {
     const [fromDay, toDay] = WHEN_DAYS[q.when];
     where.push(
-      `j.starts_at < ${JIMMA_TODAY} + interval '${toDay} days'`,
-      `coalesce(j.ends_at, j.starts_at) >= ${JIMMA_TODAY} + interval '${fromDay} days'`,
+      `j.starts_at < ${LOCAL_TODAY} + interval '${toDay} days'`,
+      `coalesce(j.ends_at, j.starts_at) >= ${LOCAL_TODAY} + interval '${fromDay} days'`,
     );
   }
   if (q.eligibleOnly && trust) {

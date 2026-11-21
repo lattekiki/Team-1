@@ -91,32 +91,21 @@ export class ManualPaymentProvider implements PaymentProvider {
 }
 
 /**
- * Simulated escrow ledger for UX/testing. Generates fake external IDs;
- * does not contact a bank or wallet.
+ * Records that the employer owes HojiiGO and that an admin approved the payout.
+ * Does not contact a bank, wallet, or a fake transfer service.
  */
-export class MockEscrowPaymentProvider implements PaymentProvider {
-  readonly name = "mock_escrow";
-  async hold(input: { pairingId: string; amountEtb: number }) {
-    const externalId = `mock_hold_${input.pairingId.slice(0, 8)}_${Date.now()}`;
-    console.log(`[payments:mock_escrow] HOLD ${input.amountEtb} ETB pairing=${input.pairingId} id=${externalId}`);
-    return { externalId, immediateHold: true };
+export class LedgerPaymentProvider implements PaymentProvider {
+  readonly name = "ledger";
+  async hold() {
+    return { externalId: null, immediateHold: true };
   }
-  async release(input: ReleaseInput) {
-    console.log(
-      `[payments:mock_escrow] RELEASE ${input.amountEtb} ETB pairing=${input.pairingId} id=${input.externalId ?? "n/a"}`,
-    );
-    return { externalId: input.externalId };
+  async release() {
+    return { externalId: null };
   }
-  async markPaid(input: { pairingId: string; amountEtb: number }) {
-    const externalId = `mock_paid_${input.pairingId.slice(0, 8)}_${Date.now()}`;
-    console.log(`[payments:mock_escrow] MARK_PAID ${input.amountEtb} ETB pairing=${input.pairingId}`);
-    return { externalId };
+  async markPaid() {
+    return { externalId: null };
   }
-  async refund(input: { pairingId: string; amountEtb: number; externalId: string | null }) {
-    console.log(
-      `[payments:mock_escrow] REFUND ${input.amountEtb} ETB pairing=${input.pairingId} id=${input.externalId ?? "n/a"}`,
-    );
-  }
+  async refund() {}
 }
 
 /**
@@ -205,7 +194,7 @@ export function createPaymentProvider(): PaymentProvider {
     case "manual":
       return new ManualPaymentProvider();
     case "mock_escrow":
-      return new MockEscrowPaymentProvider();
+      return new LedgerPaymentProvider();
     case "chapa":
       return new ChapaPaymentProvider();
     default:
@@ -261,11 +250,11 @@ export function paymentsConfig() {
     provider: paymentProvider.name,
     disclaimer:
       paymentsMode === "mock_escrow"
-        ? "Simulated escrow for testing only — no real money moves. An admin releases the record after both sides confirm."
+        ? "Payment is recorded only. No money is transferred until Chapa is connected. An admin confirms the work, then records the payout to the worker."
         : paymentsMode === "manual"
           ? "Record payments you settle directly. HojiiGO does not hold funds."
           : paymentsMode === "chapa"
-            ? "Pay with Chapa (Telebirr, cards, banks). Funds stay with HojiiGO until an admin releases them after both sides confirm the work."
+            ? "Pay with Chapa (Telebirr, cards, banks). Funds stay with HojiiGO until an admin confirms the work and pays the worker."
             : "Platform payments are off — settle directly with the other party.",
   };
 }

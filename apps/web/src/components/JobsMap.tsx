@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import L from "leaflet";
-import { JIMMA_AREA_COORDS, type JobSummary } from "@team1/shared";
+import { AREA_COORDS, MAP_CENTER, type JobSummary } from "@team1/shared";
 import { useI18n } from "../lib/i18n.tsx";
 import "leaflet/dist/leaflet.css";
 
-const JIMMA_CENTER: L.LatLngExpression = [7.673, 36.834];
+const MAP_VIEW: L.LatLngExpression = [MAP_CENTER.lat, MAP_CENTER.lng];
 const DEFAULT_ZOOM = 13;
 
 function pinIcon(active: boolean) {
@@ -61,7 +61,7 @@ export function JobsMap({
     const map = L.map(containerRef.current, {
       scrollWheelZoom: false,
       attributionControl: true,
-    }).setView(JIMMA_CENTER, DEFAULT_ZOOM);
+    }).setView(MAP_VIEW, DEFAULT_ZOOM);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -100,7 +100,7 @@ export function JobsMap({
     } else if (points.length > 1 && bounds.isValid()) {
       map.fitBounds(bounds.pad(0.2));
     } else {
-      map.setView(JIMMA_CENTER, DEFAULT_ZOOM);
+      map.setView(MAP_VIEW, DEFAULT_ZOOM);
     }
 
     requestAnimationFrame(() => map.invalidateSize());
@@ -135,7 +135,7 @@ export function JobLocationMap({ job }: { job: JobSummary }) {
   const coords =
     job.lat != null && job.lng != null
       ? { lat: job.lat, lng: job.lng }
-      : ((JIMMA_AREA_COORDS as Record<string, { lat: number; lng: number }>)[job.area] ?? null);
+      : ((AREA_COORDS as Record<string, { lat: number; lng: number }>)[job.area] ?? null);
   if (!coords) return null;
   return <JobsMap jobs={[{ ...job, lat: coords.lat, lng: coords.lng }]} height="h-56" className="shadow-sm" />;
 }

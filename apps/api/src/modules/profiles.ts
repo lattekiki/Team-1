@@ -32,9 +32,10 @@ profilesRouter.patch("/me", requireAuth, async (req, res) => {
        username = coalesce($2, username),
        language = coalesce($3, language),
        active_mode = coalesce($4, active_mode),
+       contact_name = coalesce($5, contact_name),
        updated_at = now()
      where id = $1`,
-    [me.id, body.username ?? null, body.language ?? null, body.activeMode ?? null],
+    [me.id, body.username ?? null, body.language ?? null, body.activeMode ?? null, body.contactName ?? null],
   );
   res.json({ user: await loadMe(me.id) });
 });

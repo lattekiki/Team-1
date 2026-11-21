@@ -1,17 +1,34 @@
-import { Building2, CheckCircle2 } from "lucide-react";
+import { Building2, CheckCircle2, MessageSquare } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router";
 import { ORG_MONTHLY_ETB } from "@team1/shared";
 import { btn, container, field } from "../components/ui.tsx";
 import { api } from "../lib/api.ts";
+import { useAuth } from "../lib/auth.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useToast } from "../lib/toast.tsx";
 import { useAction } from "../lib/useApi.ts";
 
 export function ContactPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { t } = useI18n();
   const toast = useToast();
   const { busy, run } = useAction();
   const [sent, setSent] = useState(false);
+
+  const talk = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const body = String(new FormData(e.currentTarget).get("body") ?? "");
+    const created = await run(
+      () =>
+        api<{ ticket: { id: string } }>("/tickets", {
+          body: { subject: "Message for the admin", category: "other", body },
+        }),
+      (m) => toast(m, "error"),
+    );
+    if (created) navigate(`/tickets/${created.ticket.id}`);
+  };
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -36,7 +53,29 @@ export function ContactPage() {
 
   return (
     <section className="py-12">
-      <div className={`${container} max-w-2xl`}>
+      <div className={`${container} max-w-2xl space-y-6`}>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <MessageSquare className="w-4 h-4" />
+            {t("talkTitle")}
+          </div>
+          <p className="text-sm text-zinc-600 mt-3 leading-relaxed">{t("talkIntro")}</p>
+          {user ? (
+            <form onSubmit={(e) => void talk(e)} className="mt-6 space-y-4">
+              <label className="block">
+                <span className={field.label}>{t("talkMessage")}</span>
+                <textarea name="body" required minLength={5} rows={4} className={field.textarea} />
+              </label>
+              <button disabled={busy} className={btn.primary}>
+                {t("talkSend")}
+              </button>
+            </form>
+          ) : (
+            <Link to="/login?next=/contact" className={`${btn.primary} mt-6`}>
+              {t("talkSignIn")}
+            </Link>
+          )}
+        </div>
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-bold">
             <Building2 className="w-4 h-4" />

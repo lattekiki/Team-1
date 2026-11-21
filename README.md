@@ -1,6 +1,6 @@
-# HojiiGO — Jimma flexible work marketplace (pilot)
+# HojiiGO — flexible work marketplace (pilot)
 
-A marketplace connecting people who want flexible work with households and businesses in Jimma, Ethiopia.
+A marketplace connecting people who want flexible work with households and businesses.
 Product spec: `SRS.docx`. Build plan, scope, data model and API: [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Stack
@@ -35,7 +35,7 @@ Default `OTP_PROVIDER=console` logs the code and returns it as `devCode` for the
 `OTP_PROVIDER=africastalking` or `twilio` (plus API keys in `apps/api/.env`) to send real SMS;
 `devCode` is then withheld unless `OTP_EXPOSE_DEV_CODE=true`.
 
-Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow` (simulated hold — no real money). The employer pays first; phone numbers stay hidden until that hold; an admin pays the worker only after both sides confirm the job is done.
+Payments default in `.env.example` to `PAYMENTS_MODE=mock_escrow`, which only records the payment. No money is transferred until Chapa is connected. The employer pays first (job pay plus 2.5%); phone numbers stay hidden until that record is held; an admin confirms the work is done, then records the worker's payout (job pay minus 2.5%). HojiiGO keeps 5%. Signed-in people can message an admin from Contact us; the same page still takes organization monthly-agreement requests.
 Use `off` to settle only outside the app, `manual` to record cash/bank payments without a hold step, or
 `chapa` with `CHAPA_SECRET_KEY` for hosted Chapa checkout (Telebirr/cards/banks). Set `PUBLIC_API_URL` so
 Chapa can reach `/api/payments/chapa/callback` and `/api/payments/webhooks/chapa`.
@@ -50,7 +50,7 @@ then enable push on the Notifications page. Optional `NOTIFY_SMS=true` also text
 |---|---|---|
 | `admin` | `0911000001` | Admin console |
 | `abebe_worker` | `0911000002` | Worker |
-| `jimma_shop` | `0911000003` | Business employer (3 demo jobs) |
+| `merkato_shop` | `0911000003` | Business employer (3 demo jobs) |
 | `kochi_family` | `0911000004` | Household employer (3 demo jobs, including a VIP childcare job) |
 
 ## Scripts

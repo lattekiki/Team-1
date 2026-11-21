@@ -27,7 +27,7 @@ const envSchema = z
     /**
      * off (default) — payment_status stays not_required.
      * manual — parties record hold/paid/refund; no money through the platform.
-     * mock_escrow — simulated hold/release ledger for UX; still no real money.
+     * mock_escrow — record the payment only. No bank or fake transfer. Admin confirms work, then records the payout.
      * chapa — licensed Chapa hosted checkout + refund/transfer (needs CHAPA_SECRET_KEY).
      */
     PAYMENTS_MODE: z.enum(["off", "manual", "mock_escrow", "chapa"]).default("off"),

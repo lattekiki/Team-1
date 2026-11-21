@@ -4,7 +4,7 @@ import { pool } from "./pool.ts";
 const users = [
   { phone: "+251911000001", username: "admin", role: "admin", mode: "employer", employerType: "individual" },
   { phone: "+251911000002", username: "abebe_worker", role: "user", mode: "worker", employerType: "individual" },
-  { phone: "+251911000003", username: "jimma_shop", role: "user", mode: "employer", employerType: "business" },
+  { phone: "+251911000003", username: "merkato_shop", role: "user", mode: "employer", employerType: "business" },
   { phone: "+251911000004", username: "kochi_family", role: "user", mode: "employer", employerType: "household" },
 ] as const;
 
@@ -27,7 +27,7 @@ type DemoJob = {
 
 const jobs: DemoJob[] = [
   {
-    employer: "jimma_shop",
+    employer: "merkato_shop",
     category: "shop-help",
     title: "Weekend shop assistant at Merkato",
     description: "Help serve customers, restock shelves and keep the counter tidy on a busy market day.",
@@ -41,7 +41,7 @@ const jobs: DemoJob[] = [
     paymentTerms: "Cash at end of day",
   },
   {
-    employer: "jimma_shop",
+    employer: "merkato_shop",
     category: "delivery",
     title: "Deliver coffee orders around Bosa Kitto",
     description: "Carry packed coffee orders to about 10 nearby shops. Bajaj fare is covered separately.",
@@ -56,7 +56,7 @@ const jobs: DemoJob[] = [
     paymentTerms: "Telebirr after the last delivery",
   },
   {
-    employer: "jimma_shop",
+    employer: "merkato_shop",
     category: "event-support",
     title: "Wedding hall setup crew (3 people)",
     description: "Arrange chairs and tables, hang decorations and clean up afterwards.",

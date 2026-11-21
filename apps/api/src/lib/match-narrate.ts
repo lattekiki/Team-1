@@ -63,7 +63,7 @@ export async function narrateMatches(
   try {
     const system =
       opts.subject === "job"
-        ? `You rank already-eligible HojiiGO jobs for a worker in Jimma. Write in ${opts.language === "am" ? "Amharic" : opts.language === "om" ? "Afaan Oromoo" : "English"}. Return JSON only: {"order":["id",...],"blurbs":{"id":"one sentence"}}. Use only provided ids. Do not invent jobs. Do not mention ratings as a reason someone is allowed to apply. No phone numbers.`
+        ? `You rank already-eligible HojiiGO jobs for a worker. Write in ${opts.language === "am" ? "Amharic" : opts.language === "om" ? "Afaan Oromoo" : "English"}. Return JSON only: {"order":["id",...],"blurbs":{"id":"one sentence"}}. Use only provided ids. Do not invent jobs. Do not mention ratings as a reason someone is allowed to apply. No phone numbers.`
         : `You rank already-listed job applicants for an employer. Write in ${opts.language === "am" ? "Amharic" : opts.language === "om" ? "Afaan Oromoo" : "English"}. Return JSON only: {"order":["id",...],"blurbs":{"id":"one sentence"}}. Use only provided ids. Keep every id. Never hide someone because they have zero reviews. No phone numbers.`;
     const user = JSON.stringify(
       labeled.map((item) => ({

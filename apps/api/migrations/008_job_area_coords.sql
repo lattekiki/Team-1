@@ -1,4 +1,4 @@
--- Backfill approximate lat/lng from Jimma neighborhood centers (for radius search).
+-- Backfill approximate lat/lng from neighborhood centers (for radius search).
 update jobs set lat = 7.690000, lng = 36.820000 where area = 'Kochi' and lat is null;
 update jobs set lat = 7.678000, lng = 36.840000 where area = 'Merkato' and lat is null;
 update jobs set lat = 7.660000, lng = 36.850000 where area = 'Bosa Kitto' and lat is null;

@@ -29,7 +29,7 @@ export const PAYMENTS_MODES = ["off", "manual", "mock_escrow", "chapa"] as const
 /** Explainable matching reasons (never a substitute for tier eligibility). */
 export const MATCH_REASONS = ["skill", "same_area", "nearby", "similar_work", "open_in_area"] as const;
 
-export const JIMMA_AREAS = [
+export const SERVICE_AREAS = [
   { id: "Kochi", am: "ኮቺ" },
   { id: "Merkato", am: "መርካቶ" },
   { id: "Bosa Kitto", am: "ቦሳ ኪቶ" },
@@ -39,8 +39,11 @@ export const JIMMA_AREAS = [
   { id: "Ginjo", am: "ጊንጆ" },
 ] as const;
 
+/** Default map view. Not a brand location; override by posting jobs in other areas. */
+export const MAP_CENTER = { lat: 7.673, lng: 36.834 } as const;
+
 /** Approximate neighborhood centers for distance filters (no map provider). */
-export const JIMMA_AREA_COORDS: Record<(typeof JIMMA_AREAS)[number]["id"], { lat: number; lng: number }> = {
+export const AREA_COORDS: Record<(typeof SERVICE_AREAS)[number]["id"], { lat: number; lng: number }> = {
   Kochi: { lat: 7.69, lng: 36.82 },
   Merkato: { lat: 7.678, lng: 36.84 },
   "Bosa Kitto": { lat: 7.66, lng: 36.85 },
@@ -54,10 +57,25 @@ export const NEAR_RADIUS_KM = [3, 5, 10, 20] as const;
 /** Completed jobs before a worker is invited to request VIP (admin still decides). */
 export const ACTIVE_WORKER_JOBS = 30;
 export const ORG_MONTHLY_ETB = 5000;
+/** Each side pays 2.5%. HojiiGO keeps 5% of the job pay. */
+export const FEE_EACH_SIDE = 0.025;
+
+export function quotePayment(jobPayEtb: number) {
+  const job = Math.round(Number(jobPayEtb));
+  const each = Math.round(job * FEE_EACH_SIDE);
+  return {
+    jobPayEtb: job,
+    employerFeeEtb: each,
+    workerFeeEtb: each,
+    employerPaysEtb: job + each,
+    workerReceivesEtb: Math.max(0, job - each),
+    platformFeeEtb: each * 2,
+  };
+}
 export const INQUIRY_STATUSES = ["new", "in_talks", "agreed", "closed"] as const;
 
 export function coordsForArea(area: string): { lat: number; lng: number } | null {
-  return (JIMMA_AREA_COORDS as Record<string, { lat: number; lng: number }>)[area] ?? null;
+  return (AREA_COORDS as Record<string, { lat: number; lng: number }>)[area] ?? null;
 }
 
 export type Language = (typeof LANGUAGES)[number];
@@ -115,6 +133,8 @@ export const updateMeSchema = z.object({
   username: usernameSchema.optional(),
   language: z.enum(LANGUAGES).optional(),
   activeMode: z.enum(MODES).optional(),
+  /** Name shared with the other party only after the employer pays. Empty clears it. */
+  contactName: z.union([z.literal(""), z.string().trim().min(2).max(80)]).optional(),
 });
 
 export const workerProfileSchema = z.object({
@@ -230,7 +250,7 @@ export const jobQuerySchema = z.object({
   payType: z.enum(PAY_TYPES).optional(),
   minPay: z.coerce.number().min(0).optional(),
   when: z.enum(JOB_WHEN).optional(),
-  /** Center neighborhood for radius search (Jimma area id). */
+  /** Center neighborhood for radius search (service area id). */
   near: z.string().trim().max(80).optional(),
   radiusKm: z.coerce.number().min(1).max(50).optional(),
   eligibleOnly: z.enum(["1", "true"]).optional(),
@@ -318,6 +338,8 @@ export type Me = {
   id: string;
   phone: string;
   username: string | null;
+  /** Private until a paid pairing. Falls back to username when unset. */
+  contactName: string;
   language: Language;
   role: Role;
   activeMode: Mode;
@@ -345,7 +367,7 @@ export type JobSummary = {
   employer: { username: string; employerType: EmployerType; businessName: string | null };
   area: string;
   landmark: string;
-  /** Approximate map pin (job coords or Jimma neighborhood center). */
+  /** Approximate map pin (job coords or neighborhood center). */
   lat: number | null;
   lng: number | null;
   startsAt: string | null;
@@ -420,6 +442,8 @@ export type Pairing = {
   status: PairingStatus;
   paymentStatus: PaymentStatus;
   paymentAmountEtb: number | null;
+  platformFeeEtb: number | null;
+  workerPayoutEtb: number | null;
   paymentHeldAt: string | null;
   paymentPaidAt: string | null;
   /** Hosted checkout URL while payment is still pending (Chapa). */
@@ -438,7 +462,7 @@ export type Pairing = {
   workerCompletedAt: string | null;
   completedAt: string | null;
   createdAt: string;
-  contact: { phone: string } | null;
+  contact: { phone: string; name: string } | null;
   myReview: { overall: number; body: string } | null;
   theirReview: { overall: number; body: string } | null;
   rebooking: { id: string; status: string } | null;
